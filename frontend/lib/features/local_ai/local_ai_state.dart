@@ -24,6 +24,10 @@ class LocalAiState extends ChangeNotifier {
   /// The last download attempt failed. Cloud chat is never affected.
   bool downloadFailed = false;
 
+  /// Plain-language reason for the last download failure, shown only in
+  /// the download sheet / badge tooltip. Null when nothing to show.
+  String? downloadError;
+
   /// 0-100 while a download runs.
   int downloadProgress = 0;
 
@@ -41,6 +45,7 @@ class LocalAiState extends ChangeNotifier {
     bool? failed,
     int? progress,
     bool? local,
+    String? error,
   }) {
     if (supported != null) deviceSupported = supported;
     if (engine != null) engineReady = engine;
@@ -49,6 +54,7 @@ class LocalAiState extends ChangeNotifier {
     if (failed != null) downloadFailed = failed;
     if (progress != null) downloadProgress = progress;
     if (local != null) useLocal = local;
+    if (error != null) downloadError = error.isEmpty ? null : error;
     notifyListeners();
   }
 }

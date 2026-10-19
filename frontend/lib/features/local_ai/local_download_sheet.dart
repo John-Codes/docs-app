@@ -49,6 +49,25 @@ class LocalDownloadSheet extends StatelessWidget {
         child: const Text('Ready — close'),
       );
     }
+    if (localAiState.downloadFailed) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            localAiState.downloadError ??
+                'The download could not start.',
+            style:
+                TextStyle(color: Theme.of(context).colorScheme.error),
+          ),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: localModelStore.download,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Retry download'),
+          ),
+        ],
+      );
+    }
     if (localAiState.downloadActive) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

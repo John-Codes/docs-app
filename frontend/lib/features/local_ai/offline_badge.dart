@@ -84,6 +84,7 @@ class _OfflineBadgeState extends State<OfflineBadge> {
       return ActionChip(
         avatar: const Icon(Icons.refresh_rounded, size: 18),
         label: const Text('Retry download'),
+        tooltip: localAiState.downloadError,
         onPressed: localModelStore.download,
       );
     }
