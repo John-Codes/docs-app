@@ -60,9 +60,14 @@ class LocalDownloadSheet extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Downloading… you can close this and keep chatting — '
-            'we\'ll switch the toggle on when it\'s done.',
+            'Downloading… you can close this and keep chatting — we\'ll '
+            'announce when it\'s ready.',
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: localModelStore.cancel,
+            child: const Text('Stop downloading'),
           ),
         ],
       );

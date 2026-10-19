@@ -1,5 +1,6 @@
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
+import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
 
 final localModelStore = LocalModelStore();
@@ -13,10 +14,6 @@ final localModelStore = LocalModelStore();
 class LocalModelStore {
   CancelToken? _cancelToken;
 
-  /// Set to true to download automatically as soon as the device qualifies.
-  /// Off by default: 530 MB is the user's mobile-data decision.
-  static const autoDownload = false;
-
   /// The Gemma 3 1B web build is gated on Hugging Face: accept its license
   /// once, then either pass HUGGINGFACE_TOKEN at build time or mirror the
   /// file and point LOCAL_MODEL_URL at your own storage.
@@ -29,9 +26,13 @@ class LocalModelStore {
     return configured.isEmpty ? _defaultUrl : configured;
   }
 
-  /// Starts the background download. Safe to call again while it runs.
+  /// Starts the background download. Safe to call again while it runs, and
+  /// safe after an interrupted download — installModel restarts and picks
+  /// up what it can. A manual start counts as fresh consent, so it clears
+  /// any earlier "not now".
   Future<void> download() async {
     if (localAiState.downloadActive) return;
+    await localAiPreferences.clearDeclined();
     localAiState.update(downloading: true, failed: false, progress: 0);
     _cancelToken = CancelToken();
     try {
@@ -56,9 +57,12 @@ class LocalModelStore {
     }
   }
 
-  void cancel() {
+  /// Stops the download and remembers the decision, so smart auto-download
+  /// never starts it again by itself. The badge stays for a manual restart.
+  Future<void> cancel() async {
     _cancelToken?.cancel('User stopped the on-device model download.');
     localAiState.update(downloading: false);
+    await localAiPreferences.markDownloadDeclined();
   }
 
   bool get isModelInstalled => FlutterEdgeAi.activeModelSpec != null;
