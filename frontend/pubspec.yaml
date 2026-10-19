@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.10.8
+  sdk: ^3.12.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -39,6 +39,11 @@ dependencies:
   file_picker: ^13.1.0
   flutter_markdown_plus: ^1.0.12
   web: ^1.1.1
+
+  # On-device AI (local mode). Cloud chat stays the default; these only add
+  # the optional on-device engine. See lib/features/local_ai/.
+  flutter_edge_ai: ^2.4.1
+  flutter_edge_ai_mediapipe: ^1.2.2
 
 dev_dependencies:
   flutter_test:

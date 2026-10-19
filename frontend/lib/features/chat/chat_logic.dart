@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../local_ai/local_ai.dart';
 import 'chat_api.dart';
 import 'chat_message.dart';
 
@@ -35,6 +36,25 @@ class ChatLogic extends ChangeNotifier {
     );
     isLoading = true;
     notifyListeners();
+
+    if (localAiState.useLocal && localAiState.available) {
+      final localAnswer = await localChatBridge.answer(text);
+      if (localAnswer != null) {
+        messages.add(
+          ChatMessage(
+            text: localAnswer.text,
+            isUser: false,
+            timestamp: DateTime.now(),
+            sources: localAnswer.sources,
+          ),
+        );
+        isLoading = false;
+        notifyListeners();
+        focusNode.requestFocus();
+        return;
+      }
+      // Any local failure silently continues with the cloud answer below.
+    }
 
     try {
       final reply = await _api.ask(text, history);

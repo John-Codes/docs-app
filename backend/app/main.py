@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.chat.retrieve import router as retrieve_router
 from app.chat.router import router as chat_router
 from app.clients import get_qdrant, get_settings
 from app.documents.router import router as documents_router
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     )
     app.include_router(documents_router)
     app.include_router(chat_router)
+    app.include_router(retrieve_router)
 
     @app.get("/health")
     def health() -> dict:

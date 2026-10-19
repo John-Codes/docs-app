@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../local_ai/local_ai.dart';
 import 'chat_input_bar.dart';
 import 'chat_logic.dart';
 import 'chat_message_bubble.dart';
@@ -58,6 +59,7 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             ),
+            const LocalModeBar(),
             const ChatInputBar(),
           ],
         ),
