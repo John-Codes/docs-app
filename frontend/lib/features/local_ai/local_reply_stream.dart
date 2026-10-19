@@ -1,13 +1,15 @@
 import '../chat/chat_message.dart';
 import '../chat/chat_source.dart';
 import 'local_chat_bridge.dart';
+import 'typewriter_reveal.dart';
 
 /// Owns the streaming assistant bubble while the on-device model writes.
 ///
-/// Adds a "thinking" message, grows it as tokens arrive — repainting at
-/// most ~10 times a second so token flow never stutters the UI — then
-/// finalizes it with its citations. If the turn has to fall back to the
-/// cloud the partial bubble is removed, leaving the history clean.
+/// Small tokens grow the bubble live (repainted at most ~10x/second). A
+/// single batched chunk — what the MediaPipe web engine usually delivers —
+/// is instead typed out at reading pace by [TypewriterReveal], so the user
+/// always sees text flowing. If the turn falls back to the cloud the
+/// partial bubble is removed, leaving the history clean.
 class LocalReplyStream {
   LocalReplyStream(this._messages, this._notify);
 
@@ -15,23 +17,36 @@ class LocalReplyStream {
   final void Function() _notify;
 
   DateTime _lastPaint = DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _stamp = DateTime.fromMillisecondsSinceEpoch(0);
+  int _slot = -1;
   String _pending = '';
+  LocalAnswer? _finalAnswer;
 
-  /// Adds the empty streaming bubble the tokens will land in.
+  late final TypewriterReveal _typewriter =
+      TypewriterReveal(_onRevealPiece, _onRevealDone);
+
+  /// Adds the empty streaming bubble the tokens land in.
   void start() {
+    _stamp = DateTime.now();
     _messages.add(
       ChatMessage(
         text: '',
         isUser: false,
-        timestamp: DateTime.now(),
+        timestamp: _stamp,
         isLoading: true,
       ),
     );
+    _slot = _messages.length - 1;
     _notify();
   }
 
-  /// Called for every generated token; repaints at most every 100 ms.
+  /// Called for every generated token.
   void onToken(String token) {
+    final batched = token.length > _batchedChunk || _typewriter.isActive;
+    if (batched) {
+      _typewriter.add(token); // whole-sentence chunk: type it out.
+      return;
+    }
     _pending += token;
     final now = DateTime.now();
     if (now.difference(_lastPaint) < _paintGap) return;
@@ -39,28 +54,50 @@ class LocalReplyStream {
     _paint();
   }
 
-  /// Replaces the bubble with the authoritative answer and its citations.
+  /// Replaces the bubble with the authoritative answer and its citations —
+  /// once the typing has finished revealing it.
   void finish(LocalAnswer answer) {
+    if (_typewriter.isActive) {
+      _finalAnswer = answer; // painted when the reveal drains.
+      return;
+    }
     _pending = answer.text;
     _paint(sources: answer.sources);
   }
 
   /// Removes the partial bubble before the cloud answer arrives.
   void discard() {
-    if (_messages.isEmpty || !_messages.last.isLoading) return;
-    _messages.removeLast();
+    _typewriter.stop();
+    if (_slot < 0 || _slot >= _messages.length) return;
+    final bubble = _messages[_slot];
+    if (bubble.timestamp != _stamp || !bubble.isLoading) return;
+    _messages.removeAt(_slot);
     _notify();
   }
 
+  void _onRevealPiece(String piece) {
+    _pending += piece;
+    _paint();
+  }
+
+  void _onRevealDone() {
+    final answer = _finalAnswer;
+    if (answer == null) return;
+    _finalAnswer = null;
+    _pending = answer.text;
+    _paint(sources: answer.sources);
+  }
+
   void _paint({List<ChatSource> sources = const []}) {
-    if (_messages.isEmpty || _messages.last.isUser) return;
-    final current = _messages.last;
+    if (_slot < 0 || _slot >= _messages.length) return;
+    final current = _messages[_slot];
+    if (current.timestamp != _stamp || !current.isLoading) return;
     final text = sources.isEmpty ? current.text + _pending : _pending;
     _pending = '';
-    _messages[_messages.length - 1] = ChatMessage(
+    _messages[_slot] = ChatMessage(
       text: text,
       isUser: false,
-      timestamp: current.timestamp,
+      timestamp: _stamp,
       sources: sources,
       isLoading: sources.isEmpty,
     );
@@ -69,3 +106,4 @@ class LocalReplyStream {
 }
 
 const _paintGap = Duration(milliseconds: 100);
+const _batchedChunk = 32; // chars: a real token is a few, a batch is many.
