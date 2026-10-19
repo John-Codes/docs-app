@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: docs-app
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: EMBEDDING_MODEL
+        value: nvidia/llama-nemotron-embed-vl-1b-v2:free
+      - key: EMBEDDING_DIMENSIONS
+        value: "2048"
+      - key: CHAT_PROVIDER
+        value: nvidia
+      - key: CHAT_MODEL
+        value: openai/gpt-oss-20b
+      - key: NVIDIA_API_KEY
+        sync: false
+      - key: CHAT_TOP_K
+        value: "8"
+      - key: MAX_UPLOAD_MB
+        value: "50"

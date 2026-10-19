@@ -1,0 +1,35 @@
+# --- Secrets (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# --- Flutter / Dart ---
+frontend/.dart_tool/
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/.packages
+frontend/.metadata
+frontend/android/
+frontend/ios/
+frontend/linux/
+frontend/macos/
+frontend/windows/
+
+# --- Editors / OS ---
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# backend/static is intentionally committed: it is the built Flutter web app
+# that the Render Docker image serves. Rebuild it with scripts/build_web.sh.
