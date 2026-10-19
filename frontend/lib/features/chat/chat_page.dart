@@ -58,7 +58,10 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             ),
-            const ChatInputBar(),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: const ChatInputBar(),
+            ),
           ],
         ),
       ),
