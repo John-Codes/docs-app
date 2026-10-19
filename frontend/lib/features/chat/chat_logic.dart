@@ -38,22 +38,22 @@ class ChatLogic extends ChangeNotifier {
     notifyListeners();
 
     if (localAiState.useLocal && localAiState.available) {
-      final localAnswer = await localChatBridge.answer(text);
+      final stream = LocalReplyStream(messages, notifyListeners);
+      stream.start();
+      final localAnswer = await localChatBridge.answer(
+        text,
+        onToken: stream.onToken,
+      );
       if (localAnswer != null) {
-        messages.add(
-          ChatMessage(
-            text: localAnswer.text,
-            isUser: false,
-            timestamp: DateTime.now(),
-            sources: localAnswer.sources,
-          ),
-        );
+        stream.finish(localAnswer);
         isLoading = false;
         notifyListeners();
         focusNode.requestFocus();
         return;
       }
-      // Any local failure silently continues with the cloud answer below.
+      // Any local failure silently continues with the cloud answer below;
+      // the half-written bubble is removed first.
+      stream.discard();
     }
 
     try {

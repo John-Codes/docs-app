@@ -24,11 +24,26 @@ class LocalModeBar extends StatelessWidget {
             ],
             selected: {localAiState.useLocal},
             onSelectionChanged: (selection) =>
-                localAiState.update(local: selection.first),
+                _switchMode(context, selection.first),
             showSelectedIcon: false,
           ),
         );
       },
+    );
+  }
+
+  void _switchMode(BuildContext context, bool useLocal) {
+    localAiState.update(local: useLocal);
+    if (!useLocal || localAiState.speedNoticeShown) return;
+    localAiState.update(speedNotice: true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Answers now run on your device — speed depends on its hardware, '
+          'so some replies may take longer.',
+        ),
+        duration: Duration(seconds: 5),
+      ),
     );
   }
 }

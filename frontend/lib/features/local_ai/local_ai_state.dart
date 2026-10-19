@@ -34,6 +34,9 @@ class LocalAiState extends ChangeNotifier {
   /// The user picked on-device answers for the next messages.
   bool useLocal = false;
 
+  /// The one-per-session "device speed" notice was shown already.
+  bool speedNoticeShown = false;
+
   /// True only when local answers can actually be served right now.
   bool get available => deviceSupported && engineReady && modelReady;
 
@@ -46,6 +49,7 @@ class LocalAiState extends ChangeNotifier {
     int? progress,
     bool? local,
     String? error,
+    bool? speedNotice,
   }) {
     if (supported != null) deviceSupported = supported;
     if (engine != null) engineReady = engine;
@@ -55,6 +59,7 @@ class LocalAiState extends ChangeNotifier {
     if (progress != null) downloadProgress = progress;
     if (local != null) useLocal = local;
     if (error != null) downloadError = error.isEmpty ? null : error;
+    if (speedNotice != null) speedNoticeShown = speedNotice;
     notifyListeners();
   }
 }

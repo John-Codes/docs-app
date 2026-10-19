@@ -10,5 +10,6 @@ export 'local_ai_startup.dart';
 export 'local_chat_bridge.dart';
 export 'local_download_sheet.dart';
 export 'local_mode_bar.dart';
+export 'local_reply_stream.dart';
 export 'offline_badge.dart';
 export 'offline_banner.dart';

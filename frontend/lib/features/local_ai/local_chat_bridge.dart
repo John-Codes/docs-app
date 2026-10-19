@@ -27,7 +27,10 @@ class LocalChatBridge {
   final LocalGrounding _grounding;
   InferenceChat? _chat;
 
-  Future<LocalAnswer?> answer(String question) async {
+  Future<LocalAnswer?> answer(
+    String question, {
+    void Function(String token)? onToken,
+  }) async {
     try {
       final chunks = await _grounding.retrieve(question);
       if (chunks.isEmpty) return null; // Cloud answers "don't cover that".
@@ -40,7 +43,7 @@ class LocalChatBridge {
         ),
       );
 
-      final answer = await _streamAnswer(chat);
+      final answer = await _streamAnswer(chat, onToken);
       if (answer.trim().isEmpty) return null;
 
       return LocalAnswer(text: answer.trim(), sources: _citations(chunks));
@@ -57,10 +60,16 @@ class LocalChatBridge {
     return _chat!;
   }
 
-  Future<String> _streamAnswer(InferenceChat chat) async {
+  Future<String> _streamAnswer(
+    InferenceChat chat,
+    void Function(String token)? onToken,
+  ) async {
     final answer = StringBuffer();
     await for (final response in chat.generateChatResponseAsync()) {
-      if (response is TextResponse) answer.write(response.token);
+      if (response is TextResponse) {
+        answer.write(response.token);
+        onToken?.call(response.token);
+      }
     }
     return answer.toString();
   }

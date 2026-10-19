@@ -60,11 +60,19 @@ class ChatMessageBubble extends StatelessWidget {
                 bottomRight: Radius.circular(18),
               ),
             ),
-            child: MarkdownBody(
-              data: message.text,
-              selectable: true,
-              styleSheet: chatMarkdownStyles(context),
-            ),
+            child: message.isLoading && message.text.isEmpty
+                ? Text(
+                    'Thinking…',
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 15,
+                    ),
+                  )
+                : MarkdownBody(
+                    data: message.text,
+                    selectable: true,
+                    styleSheet: chatMarkdownStyles(context),
+                  ),
           ),
           if (message.sources.isNotEmpty)
             Padding(
