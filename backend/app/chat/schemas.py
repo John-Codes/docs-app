@@ -12,6 +12,7 @@ class ChatRequest(BaseModel):
 
 
 class Citation(BaseModel):
+    index: int = 0
     doc_id: str
     doc_title: str
     page: int
