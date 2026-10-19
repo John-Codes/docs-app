@@ -1,0 +1,39 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:latest
+        ports:
+          - 6333:6333
+    env:
+      QDRANT_URL: http://localhost:6333
+      QDRANT_API_KEY: local-test-key
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      CHAT_PROVIDER: nvidia
+      CHAT_MODEL: openai/gpt-oss-20b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+      - name: Compile check
+        working-directory: backend
+        run: python -m compileall -q app
+      - name: End-to-end tests against local Qdrant and real APIs
+        if: ${{ secrets.OPENROUTER_API_KEY != '' }}
+        working-directory: backend
+        run: pytest tests -q
