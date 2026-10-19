@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import 'chat_markdown_styles.dart';
 import 'chat_message.dart';
+import 'citation_links.dart';
+import 'copy_answer_button.dart';
+import 'open_citation.dart';
 import 'source_card.dart';
 
 class ChatMessageBubble extends StatelessWidget {
@@ -61,9 +63,13 @@ class ChatMessageBubble extends StatelessWidget {
               ),
             ),
             child: MarkdownBody(
-              data: message.text,
+              data: linkifyCitations(message.text, message.sources),
               selectable: true,
               styleSheet: chatMarkdownStyles(context),
+              onTapLink: (text, href, title) {
+                final source = citationForLink(href, message.sources);
+                if (source != null) openCitation(context, source);
+              },
             ),
           ),
           if (message.sources.isNotEmpty)
@@ -78,17 +84,7 @@ class ChatMessageBubble extends StatelessWidget {
                 ],
               ),
             ),
-          IconButton(
-            tooltip: 'Copy answer',
-            visualDensity: VisualDensity.compact,
-            onPressed: () =>
-                Clipboard.setData(ClipboardData(text: message.text)),
-            icon: Icon(
-              Icons.copy_rounded,
-              size: 15,
-              color: scheme.onSurfaceVariant,
-            ),
-          ),
+          CopyAnswerButton(text: message.text),
         ],
       ),
     );

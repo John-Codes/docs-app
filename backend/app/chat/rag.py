@@ -1,5 +1,4 @@
-import re
-
+from app.chat.citations import apply_markers, build_citations
 from app.chat.prompt import build_messages
 from app.clients import get_qdrant, get_settings
 from app.chat_model import chat_completion
@@ -15,44 +14,6 @@ def _source(hit) -> dict:
         "score": round(float(hit.score or 0), 4),
         "text": payload.get("text", "") or "",
     }
-
-
-def _citation(source: dict) -> dict:
-    return {
-        "doc_id": source["doc_id"],
-        "doc_title": source["doc_title"],
-        "page": source["page"],
-        "score": source["score"],
-        "snippet": source["text"][:260].strip(),
-    }
-
-
-_NUMBERED = re.compile(r"\[(\d+)\]")
-
-
-def _normalize_citations(answer: str, sources: list[dict]) -> str:
-    """Turn excerpt numbers the model may emit into [Title, p. N]."""
-
-    def replace(match: re.Match[str]) -> str:
-        index = int(match.group(1))
-        if 1 <= index <= len(sources):
-            source = sources[index - 1]
-            return f"[{source['doc_title']}, p. {source['page']}]"
-        return match.group(0)
-
-    return _NUMBERED.sub(replace, answer)
-
-
-def _unique_citations(sources: list[dict]) -> list[dict]:
-    seen: set[tuple[str, int]] = set()
-    citations = []
-    for source in sources:
-        key = (source["doc_id"], source["page"])
-        if key in seen:
-            continue
-        seen.add(key)
-        citations.append(_citation(source))
-    return citations
 
 
 def answer_question(question: str, history: list[dict]) -> tuple[str, list[dict]]:
@@ -75,4 +36,6 @@ def answer_question(question: str, history: list[dict]) -> tuple[str, list[dict]
     lowered = answer.lower()
     if "documents don't cover that" in lowered or "documents don’t cover that" in lowered:
         return answer, []
-    return _normalize_citations(answer, sources), _unique_citations(sources)
+
+    citations, marker_map = build_citations(sources)
+    return apply_markers(answer, marker_map), citations
