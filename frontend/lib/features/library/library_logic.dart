@@ -79,6 +79,13 @@ class LibraryLogic extends ChangeNotifier {
     });
   }
 
-  String _message(Object failure) =>
-      failure.toString().replaceFirst('Exception: ', '');
+  /// Uploads and removals fail for known reasons (another tab holding the
+  /// database, storage the browser refuses) that each have a clear next
+  /// step; unknown ones keep their raw text for a bug report.
+  String _message(Object failure) {
+    if (isIndexBusy(failure) || failure.toString().contains('Web Locks API')) {
+      return describeIndexFailure(failure);
+    }
+    return failure.toString().replaceFirst('Exception: ', '');
+  }
 }

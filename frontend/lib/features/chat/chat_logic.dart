@@ -46,8 +46,8 @@ class ChatLogic extends ChangeNotifier {
     final List<RagChunk> excerpts;
     try {
       excerpts = await localRetriever.retrieve(text);
-    } catch (_) {
-      _settle(_searchFailedMessage(), const []);
+    } catch (failure) {
+      _settle(_searchFailedMessage(failure), const []);
       return;
     }
     if (excerpts.isEmpty) {
@@ -109,14 +109,16 @@ class ChatLogic extends ChangeNotifier {
   }
 
   /// Search itself broke (embedder or index unavailable): say so instead of
-  /// pretending the documents lack the answer.
-  String _searchFailedMessage() {
+  /// pretending the documents lack the answer. The reason matters — another
+  /// tab holding the database and a missing model need different fixes —
+  /// so it comes from the failure itself.
+  String _searchFailedMessage(Object failure) {
     if (!searchModelStore.isInstalled) {
       return 'Search is not ready on this device yet. Download the search '
           'model from the badge at the top, then ask again.';
     }
-    return 'On-device search could not run on this device. Reload the page '
-        'and try again — uploading still works meanwhile.';
+    debugPrint('[on-device-rag] chat search failed: $failure');
+    return describeIndexFailure(failure);
   }
 
   /// Adds an assistant bubble unless told otherwise, then ends the turn.

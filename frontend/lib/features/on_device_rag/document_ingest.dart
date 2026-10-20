@@ -1,11 +1,13 @@
 import 'dart:async';
-import 'dart:typed_data';
+
+import 'package:flutter/foundation.dart';
 
 import '../library/document_info.dart';
 import '../local_ai/local_ai_state.dart';
 import 'chunker.dart';
 import 'document_catalog.dart';
 import 'extractor_router.dart';
+import 'index_trouble.dart';
 import 'local_index.dart';
 import 'pdf_blob_store.dart';
 import 'search_model_store.dart';
@@ -81,11 +83,11 @@ class DocumentIngest {
         document.copyWith(status: 'ready', chunks: indexed, error: ''),
       );
     } catch (failure) {
+      // The stored message is what the library shows, so it must say what
+      // to do next; the raw exception stays in the console for bug reports.
+      debugPrint('[on-device-rag] indexing failed: $failure');
       await documentCatalog.upsert(
-        document.copyWith(
-          status: 'failed',
-          error: failure.toString().replaceFirst('Exception: ', ''),
-        ),
+        document.copyWith(status: 'failed', error: describeIndexFailure(failure)),
       );
     }
   }

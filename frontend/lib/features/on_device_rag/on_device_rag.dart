@@ -6,6 +6,7 @@ library;
 export 'bundled_document.dart';
 export 'document_catalog.dart';
 export 'document_ingest.dart';
+export 'index_trouble.dart';
 export 'local_index.dart';
 export 'local_library.dart';
 export 'local_retriever.dart';

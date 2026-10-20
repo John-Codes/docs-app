@@ -6,6 +6,8 @@ import 'package:web/web.dart' as web;
 import '../local_ai/browser_connectivity.dart';
 import '../local_ai/local_ai_state.dart';
 import 'bundled_document.dart';
+import 'document_catalog.dart';
+import 'index_trouble.dart';
 import 'local_library.dart';
 import 'passage_budget.dart';
 import 'search_model_store.dart';
@@ -33,13 +35,15 @@ Future<void> startOnDeviceRag() async {
 }
 
 /// Brings the library up to date once search is installed: the document
-/// that ships with the app, and — only when the passage pipeline changed —
-/// anything that failed under the older splitter. Never forces the 114 MB
-/// download, and never re-embeds a ready document on app load.
+/// that ships with the app, anything a previous session left mid-index, and
+/// — only when the passage pipeline changed — anything that failed under the
+/// older splitter. Never forces the 114 MB download, and never re-embeds a
+/// ready document on app load.
 Future<void> _restoreLibrary() async {
   try {
     if (!await searchModelStore.whenReady()) return;
     await bundledDocument.seed();
+    await localLibrary.resumeInterrupted();
     await _healFailedDocumentsOnce();
   } catch (_) {
     // Best effort; uploads and cloud answers do not depend on this.
@@ -49,10 +53,17 @@ Future<void> _restoreLibrary() async {
 const _pipelineVersionKey = 'on_device_rag_pipeline_version_v1';
 
 /// Retries failed documents once per passage-pipeline version, then records
-/// the version so later loads do no embedding work of their own.
+/// the version so later loads do no embedding work of their own. A document
+/// that only failed because another tab held the database open is retried on
+/// any load: that cause is gone once its tab is closed, and re-uploading to
+/// recover from a locked tab would be a trap.
 Future<void> _healFailedDocumentsOnce() async {
   final current = '$onDeviceRagPipelineVersion';
-  if (_readVersion() == current) return;
+  final versionChanged = _readVersion() != current;
+  final tabWasBusy = documentCatalog.read().any(
+    (document) => document.hasFailed && isIndexBusy(document.error ?? ''),
+  );
+  if (!versionChanged && !tabWasBusy) return;
   // Offline the extraction would fail anyway; leave the version unclaimed
   // so one online load can heal them.
   if (!browserConnectivity.online) return;

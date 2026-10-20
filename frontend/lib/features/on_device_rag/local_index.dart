@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart';
 import 'package:flutter_edge_ai_sqlite/flutter_edge_ai_sqlite.dart';
 
 import 'chunker.dart';
 import 'embedder_token_counter.dart';
+import 'index_trouble.dart';
 import 'rag_chunk.dart';
 import 'search_model_store.dart';
 import 'sequential_model_loader.dart';
@@ -36,15 +38,30 @@ class LocalIndex {
       throw UnsupportedError('SQLite vector search is unavailable here.');
     }
 
-    final index = await rag.open(
-      spec: spec,
-      embedder: FlutterEdgeAiActiveEmbedder.forActiveModel(
-        namespace: _namespace,
-      ),
+    final embedder = FlutterEdgeAiActiveEmbedder.forActiveModel(
+      namespace: _namespace,
     );
-    _index = index;
-    sequentialModelLoader.unloadEmbeddings = close;
-    return index;
+    // The database is exclusive across tabs, so a second tab — or a tab
+    // that still holds it while closing — is refused outright. Wait a few
+    // seconds for that holder to let go, then fail with a reason the user
+    // can act on instead of a raw storage exception.
+    Object? busy;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final index = await rag.open(spec: spec, embedder: embedder);
+        _index = index;
+        sequentialModelLoader.unloadEmbeddings = close;
+        return index;
+      } catch (failure) {
+        if (!isIndexBusy(failure)) rethrow;
+        busy = failure;
+        debugPrint('[on-device-rag] index busy, waiting (attempt $attempt)');
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    }
+    // Hand the original exception up: every surface runs it through
+    // describeIndexFailure, which needs the raw text to recognize the cause.
+    throw busy!;
   }
 
   /// Indexes one document's passages as `<doc id>:<position>` and flushes.

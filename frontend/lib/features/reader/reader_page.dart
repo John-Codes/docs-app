@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../library/copyable_error.dart';
+import '../on_device_rag/bundled_document.dart';
 import '../on_device_rag/pdf_blob_store.dart';
 import 'pdf_frame.dart';
 
@@ -33,7 +35,15 @@ class _ReaderPageState extends State<ReaderPage> {
 
   Future<void> _open() async {
     try {
-      final url = await pdfBlobStore.urlFor(widget.docId);
+      var url = await pdfBlobStore.urlFor(widget.docId);
+      if (url == null && widget.docId == BundledDocument.id) {
+        // The manual ships inside the app, so its file can always come
+        // back — browsers do drop cache entries, and a document the app
+        // bundled must never be lost to that.
+        if (await bundledDocument.restore()) {
+          url = await pdfBlobStore.urlFor(widget.docId);
+        }
+      }
       if (!mounted) {
         if (url != null) pdfBlobStore.revoke(url);
         return;
@@ -71,10 +81,19 @@ class _ReaderPageState extends State<ReaderPage> {
       final suffix = page != null && page > 0 ? '#page=$page' : '';
       return PdfFrame(url: '$url$suffix');
     }
-    return Center(
-      child: _failed
-          ? const Text('This document is no longer stored on this device.')
-          : const CircularProgressIndicator(),
-    );
+    if (_failed) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: CopyableError(
+            'This PDF is no longer stored on this device. Remove the entry '
+            'from the library and upload the file again.',
+            maxLines: 6,
+            fontSize: 14,
+          ),
+        ),
+      );
+    }
+    return const Center(child: CircularProgressIndicator());
   }
 }

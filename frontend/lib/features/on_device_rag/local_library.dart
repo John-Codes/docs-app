@@ -46,6 +46,28 @@ class LocalLibrary {
     }
   }
 
+  /// Picks up the documents a previous session left mid-index.
+  ///
+  /// Indexing runs in the background, so closing or reloading the tab in the
+  /// middle of one leaves a document that says "Indexing" and never arrives:
+  /// nothing was going to finish it. Only the extract survives a reload, so
+  /// the text is extracted again — from the server when it is reachable, and
+  /// with the on-device parser when it is not — and indexing runs to the end
+  /// this time. A document that already indexed is untouched.
+  Future<void> resumeInterrupted() async {
+    final stranded = documentCatalog
+        .read()
+        .where((document) => document.isProcessing)
+        .toList();
+    for (final document in stranded) {
+      try {
+        await documentIngest.reindexDraft(document);
+      } catch (_) {
+        // Offline or an unreadable file: the next load tries again.
+      }
+    }
+  }
+
   /// Re-extracts every document that was read offline with the fallback
   /// parser. Called when the connection comes back; one failure must not
   /// stop the others, so each document is handled on its own.
