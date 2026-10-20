@@ -168,6 +168,12 @@ window.getLiteRtEmbeddingFullyAccelerated = function() {
 window.getLiteRtEmbeddingDimension = function() {
   return f;
 };
+// Added for this app (upstream apiVersion stays 2): the graph's input
+// sequence length, so callers can size text to the real token budget
+// instead of guessing. Null before loadLiteRtEmbeddings ran.
+window.getLiteRtEmbeddingMaxInputTokens = function() {
+  return c;
+};
 window.cleanupLiteRtEmbeddings = async function() {
   if (p = null, a = null, d = null, m = null, console.log("[LiteRT] ========================================"), console.log("[LiteRT] Starting cleanup..."), console.log("[LiteRT] ========================================"), r)
     try {
