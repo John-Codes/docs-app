@@ -7,4 +7,7 @@ export 'chat_message_bubble.dart';
 export 'chat_page.dart';
 export 'chat_send_button.dart';
 export 'chat_source.dart';
+export 'citation_links.dart';
+export 'copy_answer_button.dart';
+export 'open_citation.dart';
 export 'source_card.dart';

@@ -1,33 +1,24 @@
 import 'package:flutter/material.dart';
 
-import '../reader/reader_page.dart';
 import 'chat_source.dart';
+import 'open_citation.dart';
 
 class SourceCard extends StatelessWidget {
   const SourceCard({super.key, required this.source});
 
   final ChatSource source;
 
-  void _open(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ReaderPage(
-          docId: source.docId,
-          title: source.docTitle,
-          initialPage: source.page,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final label = source.index > 0
+        ? '[${source.index}] ${source.docTitle} · p. ${source.page}'
+        : '${source.docTitle} · p. ${source.page}';
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => _open(context),
+        onTap: () => openCitation(context, source),
         child: Container(
           constraints: const BoxConstraints(maxWidth: 320),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -43,7 +34,7 @@ class SourceCard extends StatelessWidget {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  '${source.docTitle} · p. ${source.page}',
+                  label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
