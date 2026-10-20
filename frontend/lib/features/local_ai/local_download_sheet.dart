@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'download_sections.dart';
 import 'local_ai_state.dart';
-import 'local_model_store.dart';
 
 /// Opens the one-time download explanation. Closing the sheet never
 /// cancels a running download — it simply continues in the background.
@@ -13,6 +13,8 @@ Future<void> showLocalDownloadSheet(BuildContext context) {
   );
 }
 
+/// Two models, two jobs: the search model indexes and retrieves, the
+/// answer model writes on-device replies. Cloud answers only need search.
 class LocalDownloadSheet extends StatelessWidget {
   const LocalDownloadSheet({super.key});
 
@@ -21,7 +23,7 @@ class LocalDownloadSheet extends StatelessWidget {
     return ListenableBuilder(
       listenable: localAiState,
       builder: (context, _) {
-        return Padding(
+        return SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -34,73 +36,20 @@ class LocalDownloadSheet extends StatelessWidget {
               const SizedBox(height: 8),
               const Text(_explanation),
               const SizedBox(height: 20),
-              _actions(context),
+              const SearchModelSection(),
+              if (!localAiState.modelReady) ...[
+                const SizedBox(height: 20),
+                const AnswerModelSection(),
+              ],
             ],
           ),
         );
       },
     );
   }
-
-  Widget _actions(BuildContext context) {
-    if (localAiState.modelReady) {
-      return FilledButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Ready — close'),
-      );
-    }
-    if (localAiState.downloadFailed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            localAiState.downloadError ??
-                'The download could not start.',
-            style:
-                TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: localModelStore.download,
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Retry download'),
-          ),
-        ],
-      );
-    }
-    if (localAiState.downloadActive) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          LinearProgressIndicator(
-            value: localAiState.downloadProgress / 100,
-            minHeight: 8,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Downloading… you can close this and keep chatting — we\'ll '
-            'announce when it\'s ready.',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: localModelStore.cancel,
-            child: const Text('Stop downloading'),
-          ),
-        ],
-      );
-    }
-    return FilledButton.icon(
-      onPressed: localModelStore.download,
-      icon: const Icon(Icons.download_rounded),
-      label: const Text('Download (about 530 MB)'),
-    );
-  }
 }
 
 const _explanation =
-    'Answers can run fully on your device — private and offline. '
-    'It\'s a one-time download of about 530 MB stored by your browser, '
-    'and your chat keeps working normally while it downloads. '
-    'Cloud answers stay available as an always-on fallback.';
+    'Everything stays in this browser: your PDFs, the passages, and the '
+    'numbers used to search them. Downloads run in the background and chat '
+    'keeps working meanwhile. Cloud answers stay available as a fallback.';

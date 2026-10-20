@@ -4,14 +4,15 @@ import 'local_ai_state.dart';
 import 'local_download_sheet.dart';
 import 'local_model_store.dart';
 
-/// App-wide status badge for the offline mode. Invisible on devices that
-/// cannot run it; otherwise walks the user through readiness:
+/// App-wide status badge for the on-device features. Invisible until the
+/// engine is up; otherwise walks the user through readiness:
 ///
-///   "Get offline mode" → "Downloading 42%" → "Offline ready ✓"
+///   "Get search" → "Search 42%" → "Get offline mode" → "Offline ready ✓"
 ///
-/// The download always runs in the background — the badge is a status
-/// light, never a blocker. It also announces once, with a snackbar, when
-/// the model finishes downloading.
+/// The search model is required even for cloud answers, so this badge is
+/// the way to get it on devices that are not auto-downloading. Downloads
+/// always run in the background — the badge is a status light, never a
+/// blocker. It also announces once, with a snackbar, when a model lands.
 class OfflineBadge extends StatefulWidget {
   const OfflineBadge({super.key});
 
@@ -37,6 +38,7 @@ class _OfflineBadgeState extends State<OfflineBadge> {
   void _onStateChanged() {
     if (_wasDownloading &&
         !localAiState.downloadActive &&
+        !localAiState.searchDownloadActive &&
         localAiState.modelReady) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -46,7 +48,8 @@ class _OfflineBadgeState extends State<OfflineBadge> {
         ),
       );
     }
-    _wasDownloading = localAiState.downloadActive;
+    _wasDownloading =
+        localAiState.downloadActive || localAiState.searchDownloadActive;
   }
 
   @override
@@ -54,9 +57,7 @@ class _OfflineBadgeState extends State<OfflineBadge> {
     return ListenableBuilder(
       listenable: localAiState,
       builder: (context, _) {
-        if (!localAiState.deviceSupported || !localAiState.engineReady) {
-          return const SizedBox.shrink();
-        }
+        if (!localAiState.engineReady) return const SizedBox.shrink();
         return Padding(
           padding: const EdgeInsets.only(right: 4),
           child: _badge(),
@@ -66,18 +67,28 @@ class _OfflineBadgeState extends State<OfflineBadge> {
   }
 
   Widget _badge() {
-    if (localAiState.downloadActive) {
+    if (localAiState.searchDownloadActive) {
+      return _progressChip(
+        localAiState.searchProgress,
+        tooltip: 'Downloading the search model',
+      );
+    }
+    if (!localAiState.searchReady) {
       return ActionChip(
-        avatar: SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            value: localAiState.downloadProgress / 100,
-          ),
+        avatar: Icon(
+          localAiState.searchFailed
+              ? Icons.refresh_rounded
+              : Icons.search_rounded,
+          size: 18,
         ),
-        label: Text('${localAiState.downloadProgress}%'),
+        label: Text(localAiState.searchFailed ? 'Retry search' : 'Get search'),
         onPressed: _showSheet,
+      );
+    }
+    if (localAiState.downloadActive) {
+      return _progressChip(
+        localAiState.downloadProgress,
+        tooltip: 'Downloading the answer model',
       );
     }
     if (localAiState.downloadFailed) {
@@ -102,6 +113,22 @@ class _OfflineBadgeState extends State<OfflineBadge> {
         color: Theme.of(context).colorScheme.primary,
       ),
       label: const Text('Offline ready'),
+      onPressed: _showSheet,
+    );
+  }
+
+  Widget _progressChip(int progress, {required String tooltip}) {
+    return ActionChip(
+      avatar: SizedBox(
+        width: 14,
+        height: 14,
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          value: progress / 100,
+        ),
+      ),
+      label: Text('$progress%'),
+      tooltip: tooltip,
       onPressed: _showSheet,
     );
   }

@@ -31,6 +31,20 @@ class LocalAiState extends ChangeNotifier {
   /// 0-100 while a download runs.
   int downloadProgress = 0;
 
+  /// The search model (Gecko) is installed: passages can be indexed and
+  /// questions retrieved locally. Cloud answers use it too.
+  bool searchReady = false;
+
+  /// The search model is downloading right now.
+  bool searchDownloadActive = false;
+
+  /// The last search-model download failed. Nothing blocks; retrieval is
+  /// simply unavailable until it succeeds.
+  bool searchFailed = false;
+
+  /// 0-100 while the search model downloads.
+  int searchProgress = 0;
+
   /// The user picked on-device answers for the next messages.
   bool useLocal = false;
 
@@ -38,7 +52,8 @@ class LocalAiState extends ChangeNotifier {
   bool speedNoticeShown = false;
 
   /// True only when local answers can actually be served right now.
-  bool get available => deviceSupported && engineReady && modelReady;
+  bool get available =>
+      deviceSupported && engineReady && modelReady && searchReady;
 
   void update({
     bool? supported,
@@ -50,6 +65,10 @@ class LocalAiState extends ChangeNotifier {
     bool? local,
     String? error,
     bool? speedNotice,
+    bool? searchReady,
+    bool? searchDownloading,
+    bool? searchFailed,
+    int? searchProgress,
   }) {
     if (supported != null) deviceSupported = supported;
     if (engine != null) engineReady = engine;
@@ -60,6 +79,10 @@ class LocalAiState extends ChangeNotifier {
     if (local != null) useLocal = local;
     if (error != null) downloadError = error.isEmpty ? null : error;
     if (speedNotice != null) speedNoticeShown = speedNotice;
+    if (searchReady != null) this.searchReady = searchReady;
+    if (searchDownloading != null) searchDownloadActive = searchDownloading;
+    if (searchFailed != null) this.searchFailed = searchFailed;
+    if (searchProgress != null) this.searchProgress = searchProgress;
     notifyListeners();
   }
 }

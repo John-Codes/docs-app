@@ -9,8 +9,8 @@ Do NOT refactor existing working code to comply with these rules. These rules ap
 5. **Use very clear names** — names must explain what is going on (files, classes, vars, fields).
 6. **Additive & safe** — never break existing behavior; default new fields/values so old records/data remain compatible.
 7. **End-to-end tests only** — always test against the real backend, real database, and real HTTP. Never mock or fake tests.
-8. **Local test DB only** — never run tests, e2e, or review links against the production database. Locally use `scripts/local_stack.sh` (Docker Qdrant on `:6333`); CI uses a throwaway Qdrant container. The Qdrant Cloud cluster is production and is only touched by the deploy workflow's final prod check.
+8. **End-to-end tests only** — always test against the real backend, real storage, and real HTTP. Never mock or fake tests. Run tests locally with `scripts/local_stack.sh` (the FastAPI backend itself); CI runs the same suite. The backend has no database of its own anymore: documents, embeddings and retrieval live on the device (browser storage + SQLite vector index), and the backend only extracts text and runs the cloud model over client-retrieved excerpts.
 
 ---
 
-**Project note:** this app is FastAPI + Flutter web. "Database" means Qdrant: chunks, file bytes and document metadata live there. Never point tests at `QDRANT_URL` from `.env`; tests must use `QDRANT_TEST_URL` (default `http://localhost:6333`).
+**Project note:** this app is FastAPI + Flutter web. The backend is stateless: `/extract` turns a PDF into per-page text, and `/chat` answers from excerpts the browser retrieved locally (the on-device SQLite vector index). Document PDFs, chunks and embeddings are stored in the browser.

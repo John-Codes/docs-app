@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../local_ai/local_ai.dart';
+import '../on_device_rag/on_device_rag.dart';
 import 'chat_api.dart';
 import 'chat_message.dart';
+import 'chat_source.dart';
 
 final chatLogic = ChatLogic();
 
@@ -37,18 +39,26 @@ class ChatLogic extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
 
+    // Retrieval happens on the device for both answer paths. No excerpts
+    // means the library really does not cover the question, so answering
+    // it costs nothing and needs no network round trip.
+    final excerpts = await localRetriever.retrieve(text);
+    if (excerpts.isEmpty) {
+      _settle(_noExcerptsMessage(), const []);
+      return;
+    }
+
     if (localAiState.useLocal && localAiState.available) {
       final stream = LocalReplyStream(messages, notifyListeners);
       stream.start();
       final localAnswer = await localChatBridge.answer(
         text,
+        excerpts,
         onToken: stream.onToken,
       );
       if (localAnswer != null) {
         stream.finish(localAnswer);
-        isLoading = false;
-        notifyListeners();
-        focusNode.requestFocus();
+        _settle(null, const []);
         return;
       }
       // Any local failure silently continues with the cloud answer below;
@@ -57,29 +67,43 @@ class ChatLogic extends ChangeNotifier {
     }
 
     try {
-      final reply = await _api.ask(text, history);
-      messages.add(
-        ChatMessage(
-          text: reply.answer.isEmpty
-              ? "The documents don't cover that."
-              : reply.answer,
-          isUser: false,
-          timestamp: DateTime.now(),
-          sources: reply.sources,
-        ),
+      final reply = await _api.ask(text, history, excerpts);
+      _settle(
+        reply.answer.isEmpty ? "The documents don't cover that." : reply.answer,
+        reply.sources,
       );
     } catch (failure) {
+      _settle(
+        'Something went wrong. '
+        '${failure.toString().replaceFirst('Exception: ', '')}',
+        const [],
+      );
+    }
+  }
+
+  /// No excerpts is usually an honest "not in the documents", but it must
+  /// not hide a missing search model behind that answer.
+  String _noExcerptsMessage() {
+    final hasDocuments = documentCatalog.read().isNotEmpty;
+    if (hasDocuments && !searchModelStore.isInstalled) {
+      return 'Search is not ready on this device yet. Download the search '
+          'model from the badge at the top, then ask again.';
+    }
+    return "The documents don't cover that.";
+  }
+
+  /// Adds an assistant bubble unless told otherwise, then ends the turn.
+  void _settle(String? text, List<ChatSource> sources) {
+    if (text != null) {
       messages.add(
         ChatMessage(
-          text:
-              'Something went wrong. '
-              '${failure.toString().replaceFirst('Exception: ', '')}',
+          text: text,
           isUser: false,
           timestamp: DateTime.now(),
+          sources: sources,
         ),
       );
     }
-
     isLoading = false;
     notifyListeners();
     focusNode.requestFocus();

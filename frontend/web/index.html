@@ -37,6 +37,11 @@
        the cloud chat. See lib/features/local_ai/. -->
   <script src="cache_api.js"></script>
   <script src="opfs_helper.js"></script>
+  <!-- On-device search model (Gecko) via LiteRT.js. The entry module imports
+       the three sibling files by relative path, so all four live here. The
+       ~9 MB WASM runtime is served from web/wasm/ (set in
+       on_device_rag_startup.dart), never from a CDN. -->
+  <script type="module" src="litert_embeddings.js"></script>
   <script type="module">
     import { FilesetResolver, LlmInference } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@0.10.29';
     window.FilesetResolver = FilesetResolver;

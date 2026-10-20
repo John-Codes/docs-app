@@ -1,8 +1,9 @@
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../chat/chat_source.dart';
+import '../on_device_rag/rag_chunk.dart';
+import '../on_device_rag/sequential_model_loader.dart';
 import 'local_answer_prompt.dart';
-import 'local_grounding.dart';
 
 final localChatBridge = LocalChatBridge();
 
@@ -15,49 +16,65 @@ class LocalAnswer {
   final List<ChatSource> sources;
 }
 
-/// Runs one on-device answer end to end: retrieve chunks, stream the model.
+/// Runs one on-device answer end to end from excerpts retrieved locally.
 ///
-/// Returns null on ANY failure — nothing retrieved, engine error, model
-/// crash, empty answer — so the chat silently falls back to the cloud and
-/// the user experience never degrades because of local mode.
+/// Returns null on ANY failure — engine error, model crash, empty answer —
+/// so the chat silently falls back to the cloud and the user experience
+/// never degrades because of local mode.
 class LocalChatBridge {
-  LocalChatBridge([LocalGrounding? grounding])
-      : _grounding = grounding ?? LocalGrounding();
+  LocalChatBridge() {
+    sequentialModelLoader.unloadLanguageModel = unload;
+  }
 
-  final LocalGrounding _grounding;
+  InferenceModel? _model;
   InferenceChat? _chat;
 
   Future<LocalAnswer?> answer(
-    String question, {
+    String question,
+    List<RagChunk> chunks, {
     void Function(String token)? onToken,
   }) async {
+    if (chunks.isEmpty) return null;
     try {
-      final chunks = await _grounding.retrieve(question);
-      if (chunks.isEmpty) return null; // Cloud answers "don't cover that".
-
-      final chat = await _openChat();
-      await chat.addQueryChunk(
-        Message.text(
-          text: buildGroundedQuestion(question, chunks),
-          isUser: true,
-        ),
-      );
-
-      final answer = await _streamAnswer(chat, onToken);
-      if (answer.trim().isEmpty) return null;
-
-      return LocalAnswer(text: answer.trim(), sources: _citations(chunks));
+      return await sequentialModelLoader.run(OnDeviceModel.languageModel, () async {
+        final chat = await _openChat();
+        await chat.addQueryChunk(
+          Message.text(text: buildGroundedQuestion(question, chunks), isUser: true),
+        );
+        final answer = await _streamAnswer(chat, onToken);
+        if (answer.trim().isEmpty) return null;
+        return LocalAnswer(text: answer.trim(), sources: _citations(chunks));
+      });
     } catch (_) {
-      _chat = null; // A broken session must not poison the next turn.
+      await unload(); // A broken session must not poison the next turn.
       return null;
     }
   }
 
+  /// Releases the answer model completely — the memory the embedding model
+  /// needs back on a device that can only hold one of them.
+  Future<void> unload() async {
+    final chat = _chat;
+    final model = _model;
+    _chat = null;
+    _model = null;
+    try {
+      await chat?.close();
+      await model?.close();
+    } catch (_) {
+      // Already gone; the reference is dropped either way.
+    }
+    sequentialModelLoader.markClosed(OnDeviceModel.languageModel);
+  }
+
   Future<InferenceChat> _openChat() async {
-    if (_chat != null) return _chat!;
+    final existing = _chat;
+    if (existing != null) return existing;
     final model = await FlutterEdgeAi.getActiveModel(maxTokens: 2048);
-    _chat = await model.createChat(systemInstruction: localSystemInstruction);
-    return _chat!;
+    _model = model;
+    final chat = await model.createChat(systemInstruction: localSystemInstruction);
+    _chat = chat;
+    return chat;
   }
 
   Future<String> _streamAnswer(
@@ -75,7 +92,7 @@ class LocalChatBridge {
   }
 
   /// One citation per cited page, mirroring the cloud source list.
-  List<ChatSource> _citations(List<GroundedChunk> chunks) {
+  List<ChatSource> _citations(List<RagChunk> chunks) {
     final seen = <String>{};
     final sources = <ChatSource>[];
     for (final chunk in chunks) {
@@ -87,7 +104,7 @@ class LocalChatBridge {
           docId: chunk.docId,
           docTitle: chunk.docTitle,
           page: chunk.page,
-          score: 0,
+          score: chunk.score,
           snippet: chunk.text.length > 260
               ? chunk.text.substring(0, 260)
               : chunk.text,
