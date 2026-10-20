@@ -24,9 +24,22 @@ Future<void> startOnDeviceRag() async {
       unawaited(searchModelStore.download());
     }
     browserConnectivity.addListener(_reindexDraftsWhenOnline);
-    unawaited(bundledDocument.seed());
+    unawaited(_restoreLibrary());
   } catch (_) {
     // Local retrieval stays off; cloud chat is unaffected.
+  }
+}
+
+/// Brings the library up to date once search is installed: the document
+/// that ships with the app, and anything that failed before the passages
+/// were split to fit the embedder. Never forces the 114 MB download.
+Future<void> _restoreLibrary() async {
+  try {
+    if (!await searchModelStore.whenReady()) return;
+    await bundledDocument.seed();
+    await localLibrary.retryFailed();
+  } catch (_) {
+    // Best effort; uploads and cloud answers do not depend on this.
   }
 }
 

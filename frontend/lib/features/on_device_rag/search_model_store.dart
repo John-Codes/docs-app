@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../local_ai/local_ai_state.dart';
@@ -28,6 +30,28 @@ class SearchModelStore {
     if (isInstalled) return true;
     await download();
     return isInstalled;
+  }
+
+  /// Resolves when the search model is installed: immediately when it
+  /// already is, otherwise when a running download finishes. Never starts
+  /// a download itself — the 114 MB is the user's call.
+  Future<bool> whenReady({
+    Duration timeout = const Duration(minutes: 30),
+  }) async {
+    if (isInstalled) return true;
+    final ready = Completer<bool>();
+    void check() {
+      if (localAiState.searchReady && !ready.isCompleted) ready.complete(true);
+    }
+
+    localAiState.addListener(check);
+    check();
+    final installed = await ready.future.timeout(
+      timeout,
+      onTimeout: () => false,
+    );
+    localAiState.removeListener(check);
+    return installed;
   }
 
   /// Runs in the background: progress goes to [localAiState], never to a

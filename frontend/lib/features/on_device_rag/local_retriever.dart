@@ -1,12 +1,14 @@
+import 'package:flutter/foundation.dart';
+
 import 'local_index.dart';
 import 'rag_chunk.dart';
 import 'sequential_model_loader.dart';
 
 /// Finds the passages that answer a question — entirely on the device.
 ///
-/// Returns an empty list on any failure (model missing, index locked,
-/// embedding error): the chat then answers "the documents don't cover
-/// that", exactly as the server would with no excerpts. Nothing here ever
+/// An empty list means "no matching passage"; a thrown error means search
+/// itself could not run. The chat keeps those apart, so a broken embedder
+/// never masquerades as "the documents don't cover that". Nothing here ever
 /// touches the network.
 final localRetriever = LocalRetriever();
 
@@ -19,8 +21,9 @@ class LocalRetriever {
         OnDeviceModel.embeddings,
         () => localIndex.search(question, topK: _limit),
       );
-    } catch (_) {
-      return const [];
+    } catch (failure) {
+      debugPrint('[on-device-rag] retrieval failed: $failure');
+      rethrow;
     }
   }
 }

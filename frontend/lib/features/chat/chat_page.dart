@@ -61,7 +61,8 @@ class _ChatPageState extends State<ChatPage> {
             ),
             const LocalModeBar(),
             Padding(
-              padding: const EdgeInsets.only(bottom: 24),
+              // Keep the input off the screen edge on phones.
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               child: const ChatInputBar(),
             ),
           ],

@@ -36,10 +36,13 @@ class LocalDownloadSheet extends StatelessWidget {
               const SizedBox(height: 8),
               const Text(_explanation),
               const SizedBox(height: 20),
-              const SearchModelSection(),
+              // These read localAiState inside build, so they must not be
+              // const: a canonical const widget is never rebuilt, which left
+              // the sheet frozen on the download buttons while it ran.
+              SearchModelSection(),
               if (!localAiState.modelReady) ...[
                 const SizedBox(height: 20),
-                const AnswerModelSection(),
+                AnswerModelSection(),
               ],
             ],
           ),

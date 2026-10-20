@@ -39,10 +39,17 @@ class ChatLogic extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
 
-    // Retrieval happens on the device for both answer paths. No excerpts
-    // means the library really does not cover the question, so answering
-    // it costs nothing and needs no network round trip.
-    final excerpts = await localRetriever.retrieve(text);
+    // Retrieval happens on the device for both answer paths. A failure is
+    // said out loud instead of being folded into "don't cover that": it is
+    // the difference between a document that lacks the answer and search
+    // that never ran. No excerpts means no network round trip either way.
+    final List<RagChunk> excerpts;
+    try {
+      excerpts = await localRetriever.retrieve(text);
+    } catch (_) {
+      _settle(_searchFailedMessage(), const []);
+      return;
+    }
     if (excerpts.isEmpty) {
       _settle(_noExcerptsMessage(), const []);
       return;
@@ -82,14 +89,34 @@ class ChatLogic extends ChangeNotifier {
   }
 
   /// No excerpts is usually an honest "not in the documents", but it must
-  /// not hide a missing search model behind that answer.
+  /// not hide a missing search model or a document that never indexed.
   String _noExcerptsMessage() {
-    final hasDocuments = documentCatalog.read().isNotEmpty;
-    if (hasDocuments && !searchModelStore.isInstalled) {
+    final documents = documentCatalog.read();
+    if (documents.isEmpty) {
+      return 'Upload a PDF first, then ask about it.';
+    }
+    if (!searchModelStore.isInstalled) {
       return 'Search is not ready on this device yet. Download the search '
           'model from the badge at the top, then ask again.';
     }
+    if (!documents.any((document) => document.isReady && document.chunks > 0)) {
+      return documents.any((document) => document.isProcessing)
+          ? 'The documents are still being indexed. Try again in a moment.'
+          : 'No document could be indexed on this device yet. Open the '
+                'library, remove the failed document and upload it again.';
+    }
     return "The documents don't cover that.";
+  }
+
+  /// Search itself broke (embedder or index unavailable): say so instead of
+  /// pretending the documents lack the answer.
+  String _searchFailedMessage() {
+    if (!searchModelStore.isInstalled) {
+      return 'Search is not ready on this device yet. Download the search '
+          'model from the badge at the top, then ask again.';
+    }
+    return 'On-device search could not run on this device. Reload the page '
+        'and try again — uploading still works meanwhile.';
   }
 
   /// Adds an assistant bubble unless told otherwise, then ends the turn.

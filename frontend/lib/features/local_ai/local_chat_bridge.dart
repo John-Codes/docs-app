@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import '../chat/chat_source.dart';
@@ -43,9 +44,20 @@ class LocalChatBridge {
         );
         final answer = await _streamAnswer(chat, onToken);
         if (answer.trim().isEmpty) return null;
+        if (_isRefusal(answer)) {
+          // Not an exception, but the same dead end: log it so a model that
+          // refuses usable excerpts is visible instead of mysterious.
+          debugPrint(
+            '[local-ai] model declined although ${chunks.length} passages '
+            'were retrieved',
+          );
+        }
         return LocalAnswer(text: answer.trim(), sources: _citations(chunks));
       });
-    } catch (_) {
+    } catch (failure) {
+      // The user still gets a cloud answer, but the reason is never lost:
+      // it is the only clue when on-device answers stop working.
+      debugPrint('[local-ai] on-device answer failed: $failure');
       await unload(); // A broken session must not poison the next turn.
       return null;
     }
@@ -90,6 +102,9 @@ class LocalChatBridge {
     }
     return answer.toString();
   }
+
+  bool _isRefusal(String answer) =>
+      answer.toLowerCase().contains("documents don't cover that");
 
   /// One citation per cited page, mirroring the cloud source list.
   List<ChatSource> _citations(List<RagChunk> chunks) {

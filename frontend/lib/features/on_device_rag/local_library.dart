@@ -30,6 +30,21 @@ class LocalLibrary {
     await documentIngest.remove(document);
   }
 
+  /// Re-indexes documents that failed, usually because an earlier build
+  /// refused a passage the embedder now splits. The file is still on the
+  /// device, so this needs no re-upload; offline it simply tries again next
+  /// time.
+  Future<void> retryFailed() async {
+    for (final document in documentCatalog.read()) {
+      if (!document.hasFailed || document.chunks > 0) continue;
+      try {
+        await documentIngest.reindexDraft(document);
+      } catch (_) {
+        // Still offline, or the file is unreadable: leave it failed.
+      }
+    }
+  }
+
   /// Re-extracts every document that was read offline with the fallback
   /// parser. Called when the connection comes back; one failure must not
   /// stop the others, so each document is handled on its own.

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart';
 import 'package:flutter_edge_ai_sqlite/flutter_edge_ai_sqlite.dart';
@@ -62,9 +63,14 @@ class LocalIndex {
           metadata: chunk.toMetadata(),
         );
         position++;
-      } on EmbeddingInputTooLongException {
+      } on EmbeddingInputTooLongException catch (failure) {
         final parts = _halve(chunk);
-        if (parts.length < 2) rethrow;
+        if (parts.length < 2) {
+          // Not even one character fits: drop this passage rather than
+          // failing the whole document.
+          debugPrint('[on-device-rag] skipping a passage: $failure');
+          return;
+        }
         for (final part in parts) {
           await addOne(part);
         }
