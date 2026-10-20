@@ -32,8 +32,9 @@ class LocalLibrary {
 
   /// Re-indexes documents that failed, usually because an earlier build
   /// refused a passage the embedder now splits. The file is still on the
-  /// device, so this needs no re-upload; offline it simply tries again next
-  /// time.
+  /// device, so this needs no re-upload; startup calls this only when the
+  /// passage pipeline changed, never on every load, and documents that
+  /// already indexed are left alone.
   Future<void> retryFailed() async {
     for (final document in documentCatalog.read()) {
       if (!document.hasFailed || document.chunks > 0) continue;

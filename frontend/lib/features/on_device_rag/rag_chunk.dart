@@ -10,6 +10,7 @@ class RagChunk {
     required this.docTitle,
     required this.page,
     required this.text,
+    this.embeddingText,
     this.score = 0,
   });
 
@@ -34,17 +35,15 @@ class RagChunk {
   /// 1-based, exactly as the reader and the citation show it.
   final int page;
   final String text;
+
+  /// What the embedder sees, when that differs from [text]: a few words of
+  /// the previous passage are carried along so a value and its unit stay
+  /// together at a seam. Stored and shown text stays [text], so nothing is
+  /// duplicated in citations or in the answer prompt.
+  final String? embeddingText;
   final double score;
 
-  /// The same passage with different text: used when a passage is split to
-  /// fit the embedder's token window.
-  RagChunk withText(String text) => RagChunk(
-    docId: docId,
-    docTitle: docTitle,
-    page: page,
-    text: text,
-    score: score,
-  );
+  String get embeddingInput => embeddingText ?? text;
 
   /// The small JSON the vector index stores beside the vector.
   String toMetadata() => jsonEncode({

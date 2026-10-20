@@ -1,8 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_rag/flutter_edge_ai_rag.dart';
 import 'package:flutter_edge_ai_sqlite/flutter_edge_ai_sqlite.dart';
 
+import 'chunker.dart';
+import 'embedder_token_counter.dart';
 import 'rag_chunk.dart';
 import 'search_model_store.dart';
 import 'sequential_model_loader.dart';
@@ -48,61 +49,67 @@ class LocalIndex {
 
   /// Indexes one document's passages as `<doc id>:<position>` and flushes.
   ///
-  /// Returns how many passages were stored: a passage the embedder refuses
-  /// as too long is halved and both halves are stored instead.
+  /// A passage is embedded with the text the splitter measured (plus at most
+  /// a few carried words), and stored with its clean text. If the runtime
+  /// ever still refuses a passage, it is re-split at word boundaries under a
+  /// smaller budget; if that cannot succeed the document fails and the
+  /// passages already stored are removed — a half-indexed document never
+  /// answers.
   Future<int> addAll(String docId, List<RagChunk> chunks) async {
     final index = await open();
     var position = 0;
 
-    Future<void> addOne(RagChunk chunk) async {
+    Future<void> addOne(RagChunk chunk, {required bool mayResplit}) async {
       try {
         await index.add(
           id: '$docId:$position',
-          document: EmbeddingInput.text(chunk.text),
+          document: EmbeddingInput.text(chunk.embeddingInput),
           content: chunk.text,
           metadata: chunk.toMetadata(),
         );
         position++;
-      } on EmbeddingInputTooLongException catch (failure) {
-        final parts = _halve(chunk);
-        if (parts.length < 2) {
-          // Not even one character fits: drop this passage rather than
-          // failing the whole document.
-          debugPrint('[on-device-rag] skipping a passage: $failure');
-          return;
-        }
-        for (final part in parts) {
-          await addOne(part);
+      } on EmbeddingInputTooLongException {
+        if (!mayResplit) rethrow;
+        final pieces = chunkPages(
+          docId: chunk.docId,
+          docTitle: chunk.docTitle,
+          pages: [chunk.text],
+          countTokens: passageTokenCounter,
+          maxTokens: maxPassageTokens ~/ 2,
+        );
+        for (final piece in pieces) {
+          await addOne(piece, mayResplit: false);
         }
       }
     }
 
-    for (final chunk in chunks) {
-      await addOne(chunk);
+    try {
+      for (final chunk in chunks) {
+        await addOne(chunk, mayResplit: true);
+      }
+      await index.flush();
+      return position;
+    } catch (_) {
+      try {
+        await removeDocument(docId, position);
+      } catch (_) {
+        // The index may be gone; the original failure still matters.
+      }
+      rethrow;
     }
-    await index.flush();
-    return position;
   }
 
-  /// Two passages of roughly half the tokens. Real PDFs mix prose with part
-  /// numbers and tables, so word count alone cannot promise a token budget.
-  List<RagChunk> _halve(RagChunk chunk) {
-    final words = chunk.text.split(' ');
-    if (words.length > 1) {
-      final middle = words.length ~/ 2;
-      return [
-        chunk.withText(words.sublist(0, middle).join(' ')),
-        chunk.withText(words.sublist(middle).join(' ')),
-      ];
-    }
-    final text = chunk.text;
-    if (text.length < 2) return const [];
-    final middle = text.length ~/ 2;
-    return [
-      chunk.withText(text.substring(0, middle)),
-      chunk.withText(text.substring(middle)),
-    ];
+  /// Loads the embedding model (and its tokenizer) so passages can be sized
+  /// to the real token budget before the first embedding.
+  Future<void> loadEmbedder() async {
+    await FlutterEdgeAi.getActiveEmbedder();
   }
+
+  /// Counts a passage's tokens exactly as the embedder will.
+  TokenCounter get passageTokenCounter => countEmbedderTokens;
+
+  /// The largest passage the embedder accepts, prefix included.
+  int get maxPassageTokens => embedderMaxInputTokens();
 
   Future<List<RagChunk>> search(String question, {int topK = 8}) async {
     final index = await open();

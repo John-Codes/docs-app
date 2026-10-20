@@ -2,11 +2,13 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import '../library/document_info.dart';
+import '../local_ai/local_ai_state.dart';
 import 'chunker.dart';
 import 'document_catalog.dart';
 import 'extractor_router.dart';
 import 'local_index.dart';
 import 'pdf_blob_store.dart';
+import 'search_model_store.dart';
 import 'sequential_model_loader.dart';
 
 /// Turns an uploaded PDF into an on-device, searchable document.
@@ -47,16 +49,33 @@ class DocumentIngest {
   }
 
   /// Splits, embeds and stores every passage, then marks the document ready.
+  ///
+  /// Passages are sized with the embedder's own tokenizer, so the budget is
+  /// exact rather than guessed; a page that cannot be split without cutting
+  /// a word fails the document with the page named, and nothing of it stays
+  /// retrievable.
   Future<void> indexPages(DocumentInfo document, List<String> pages) async {
     try {
-      final chunks = chunkPages(
-        docId: document.id,
-        docTitle: document.title,
-        pages: pages,
-      );
+      if (!await _searchModelReady()) {
+        throw StateError(
+          'The on-device search model is not installed. Install it from '
+          'the AI menu, then upload the document again.',
+        );
+      }
       final indexed = await sequentialModelLoader.run(
         OnDeviceModel.embeddings,
-        () => localIndex.addAll(document.id, chunks),
+        () async {
+          await localIndex.open();
+          await localIndex.loadEmbedder();
+          final chunks = chunkPages(
+            docId: document.id,
+            docTitle: document.title,
+            pages: pages,
+            countTokens: localIndex.passageTokenCounter,
+            maxTokens: localIndex.maxPassageTokens,
+          );
+          return localIndex.addAll(document.id, chunks);
+        },
       );
       await documentCatalog.upsert(
         document.copyWith(status: 'ready', chunks: indexed, error: ''),
@@ -69,6 +88,15 @@ class DocumentIngest {
         ),
       );
     }
+  }
+
+  /// True when the embedder can run: already installed, or a download the
+  /// user started is under way. A document uploaded before the model exists
+  /// waits for that download instead of failing, and never starts one.
+  Future<bool> _searchModelReady() async {
+    if (searchModelStore.isInstalled) return true;
+    if (!localAiState.searchDownloadActive) return false;
+    return searchModelStore.whenReady();
   }
 
   /// Deletes the passages, the PDF and the library entry.
