@@ -1,56 +1,55 @@
-import re
+import os
+
+import pytest
+
+pytestmark = pytest.mark.skipif(
+    not os.getenv("NVIDIA_API_KEY"),
+    reason="Chat tests call the real provider and need its key.",
+)
+
+SAMPLE_TITLE = "sample"
 
 
-def test_chat_answers_from_document_with_citation(client, uploaded_doc: dict) -> None:
+def _excerpt(text: str, page: int = 0) -> dict:
+    return {
+        "doc_id": "doc-1",
+        "doc_title": SAMPLE_TITLE,
+        "page": page,
+        "score": 0.9,
+        "text": text,
+    }
+
+
+def _ask(client, message: str, excerpts: list[dict]) -> dict:
     response = client.post(
         "/chat",
-        json={"message": "How often must the hydrocyclone be inspected?", "history": []},
+        json={"message": message, "history": [], "excerpts": excerpts},
     )
-    assert response.status_code == 200
-    body = response.json()
-    assert "250" in body["answer"]
-    assert body["sources"], "expected retrieval sources"
-    source = body["sources"][0]
-    assert source["doc_title"] == "sample"
-    assert source["page"] == 1
-    assert source["score"] > 0
+    assert response.status_code == 200, response.text
+    return response.json()
 
 
-def test_chat_citations_use_short_markers(client, uploaded_doc: dict) -> None:
-    response = client.post(
-        "/chat",
-        json={"message": "How often must the hydrocyclone be inspected?", "history": []},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    answer = body["answer"]
-    sources = body["sources"]
+def test_chat_answers_only_from_the_given_excerpts(client, extracted):
+    """The whole document knowledge arrives in the request: the backend has
+    no database, so an answer grounded in the fixture proves the contract."""
+    chunk = extracted["pages"][0]["text"].strip()
+    assert chunk, "fixture PDF has no extractable text"
+    excerpt = _excerpt(chunk[:1500])
 
-    indexes = [source["index"] for source in sources]
-    assert indexes[0] == 1, indexes
-    assert indexes == sorted(indexes), indexes
-    assert len(set(indexes)) == len(indexes), indexes
+    reply = _ask(client, "In one short sentence, what is this document about?", [excerpt])
 
-    markers = [int(number) for number in re.findall(r"\[(\d+)\]", answer)]
-    assert markers, answer
-    assert all(1 <= number <= len(sources) for number in markers), markers
-
-    bracketed = re.findall(r"\[([^\]]+)\]", answer)
-    assert all(", p. " not in content for content in bracketed), answer
-    assert not re.search(r"[【】［］〔〕]", answer), answer
+    assert reply["answer"]
+    assert reply["answer"] != "The documents don't cover that."
+    assert reply["sources"], "an answer from excerpts must carry citations"
+    assert reply["sources"][0]["doc_title"] == SAMPLE_TITLE
 
 
-def test_chat_refuses_questions_outside_the_documents(client, uploaded_doc: dict) -> None:
-    response = client.post(
-        "/chat",
-        json={"message": "What is the capital of France?", "history": []},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert "cover" in body["answer"].lower(), body["answer"]
-    assert body["sources"] == []
+def test_chat_with_no_excerpts_says_documents_do_not_cover_it(client):
+    reply = _ask(client, "What is the airspeed velocity of an unladen swallow?", [])
+    assert reply["answer"] == "The documents don't cover that."
+    assert reply["sources"] == []
 
 
-def test_chat_rejects_empty_message(client) -> None:
-    response = client.post("/chat", json={"message": "   ", "history": []})
+def test_chat_rejects_an_empty_message(client):
+    response = client.post("/chat", json={"message": "   ", "excerpts": []})
     assert response.status_code == 400

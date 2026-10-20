@@ -6,9 +6,20 @@ class ChatTurn(BaseModel):
     content: str
 
 
+class Excerpt(BaseModel):
+    """One document chunk, retrieved on the device by the local index."""
+
+    doc_id: str
+    doc_title: str = "Untitled"
+    page: int = 0
+    score: float = 0
+    text: str
+
+
 class ChatRequest(BaseModel):
     message: str
     history: list[ChatTurn] = Field(default_factory=list)
+    excerpts: list[Excerpt] = Field(default_factory=list)
 
 
 class Citation(BaseModel):
