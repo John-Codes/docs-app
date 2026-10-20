@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
 import '../library/document_info.dart';
@@ -8,10 +9,11 @@ import '../library/document_info.dart';
 ///
 /// Only metadata lives here — a few hundred bytes per document. The PDF
 /// bytes are in [PdfBlobStore], the passages and vectors in the SQLite
-/// vector index.
+/// vector index. It notifies its listeners on every change, so the library
+/// follows indexing, deletion and seeding without polling.
 final documentCatalog = DocumentCatalog();
 
-class DocumentCatalog {
+class DocumentCatalog extends ChangeNotifier {
   static const _key = 'on_device_rag_documents_v1';
 
   List<DocumentInfo> read() {
@@ -45,11 +47,13 @@ class DocumentCatalog {
       documents.insert(0, document);
     }
     await _write(documents);
+    notifyListeners();
   }
 
   Future<void> remove(String id) async {
     final documents = read()..removeWhere((item) => item.id == id);
     await _write(documents);
+    notifyListeners();
   }
 
   Future<void> _write(List<DocumentInfo> documents) async {

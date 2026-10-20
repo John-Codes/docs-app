@@ -36,6 +36,16 @@ class RagChunk {
   final String text;
   final double score;
 
+  /// The same passage with different text: used when a passage is split to
+  /// fit the embedder's token window.
+  RagChunk withText(String text) => RagChunk(
+    docId: docId,
+    docTitle: docTitle,
+    page: page,
+    text: text,
+    score: score,
+  );
+
   /// The small JSON the vector index stores beside the vector.
   String toMetadata() => jsonEncode({
     'doc_id': docId,

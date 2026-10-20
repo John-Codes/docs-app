@@ -4,6 +4,7 @@ import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 
 import '../local_ai/browser_connectivity.dart';
 import '../local_ai/local_ai_state.dart';
+import 'bundled_document.dart';
 import 'local_library.dart';
 import 'search_model_store.dart';
 
@@ -23,6 +24,7 @@ Future<void> startOnDeviceRag() async {
       unawaited(searchModelStore.download());
     }
     browserConnectivity.addListener(_reindexDraftsWhenOnline);
+    unawaited(bundledDocument.seed());
   } catch (_) {
     // Local retrieval stays off; cloud chat is unaffected.
   }

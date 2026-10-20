@@ -18,17 +18,22 @@ final documentIngest = DocumentIngest();
 
 class DocumentIngest {
   /// Extracts and stores the PDF, then indexes it without blocking.
+  ///
+  /// [id] and [title] are fixed only for documents that ship with the app;
+  /// uploads get a fresh id so the same file can be added twice.
   Future<void> add({
+    String? id,
+    String? title,
     required String filename,
     required Uint8List bytes,
   }) async {
-    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final docId = id ?? DateTime.now().microsecondsSinceEpoch.toString();
     final extraction = await extractorRouter.extract(filename, bytes);
-    await pdfBlobStore.write(id, bytes);
+    await pdfBlobStore.write(docId, bytes);
 
     final document = DocumentInfo(
-      id: id,
-      title: extraction.title,
+      id: docId,
+      title: title ?? extraction.title,
       filename: filename,
       status: 'processing',
       pages: extraction.pages.length,
@@ -49,12 +54,12 @@ class DocumentIngest {
         docTitle: document.title,
         pages: pages,
       );
-      await sequentialModelLoader.run(
+      final indexed = await sequentialModelLoader.run(
         OnDeviceModel.embeddings,
         () => localIndex.addAll(document.id, chunks),
       );
       await documentCatalog.upsert(
-        document.copyWith(status: 'ready', chunks: chunks.length, error: ''),
+        document.copyWith(status: 'ready', chunks: indexed, error: ''),
       );
     } catch (failure) {
       await documentCatalog.upsert(

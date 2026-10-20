@@ -5,9 +5,10 @@ import 'rag_chunk.dart';
 /// Words per passage and overlap between neighbouring passages.
 ///
 /// Gecko 256 accepts 256 tokens (task prefix, BOS and EOS included), so a
-/// passage stays well under that: ~140 words is ~190 tokens of PDF text.
-const _chunkWords = 140;
-const _overlapWords = 30;
+/// passage stays under that: ~110 words is ~200 tokens of dense technical
+/// text. A passage that still overflows is split again by the index.
+const _chunkWords = 110;
+const _overlapWords = 25;
 
 /// Splits the extracted pages into passages an embedding model can take.
 ///

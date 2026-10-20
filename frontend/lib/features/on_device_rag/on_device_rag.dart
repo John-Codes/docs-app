@@ -3,6 +3,7 @@
 /// model over excerpts this pipeline retrieved.
 library;
 
+export 'bundled_document.dart';
 export 'document_catalog.dart';
 export 'document_ingest.dart';
 export 'local_index.dart';

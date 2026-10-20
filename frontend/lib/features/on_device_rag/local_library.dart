@@ -12,8 +12,17 @@ final localLibrary = LocalLibrary();
 class LocalLibrary {
   List<DocumentInfo> list() => documentCatalog.read();
 
-  Future<void> add({required String filename, required Uint8List bytes}) =>
-      documentIngest.add(filename: filename, bytes: bytes);
+  Future<void> add({
+    String? id,
+    String? title,
+    required String filename,
+    required Uint8List bytes,
+  }) => documentIngest.add(
+    id: id,
+    title: title,
+    filename: filename,
+    bytes: bytes,
+  );
 
   Future<void> remove(String id) async {
     final document = documentCatalog.find(id);

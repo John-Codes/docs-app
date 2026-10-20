@@ -46,18 +46,56 @@ class LocalIndex {
   }
 
   /// Indexes one document's passages as `<doc id>:<position>` and flushes.
-  Future<void> addAll(String docId, List<RagChunk> chunks) async {
+  ///
+  /// Returns how many passages were stored: a passage the embedder refuses
+  /// as too long is halved and both halves are stored instead.
+  Future<int> addAll(String docId, List<RagChunk> chunks) async {
     final index = await open();
-    for (var position = 0; position < chunks.length; position++) {
-      final chunk = chunks[position];
-      await index.add(
-        id: '$docId:$position',
-        document: EmbeddingInput.text(chunk.text),
-        content: chunk.text,
-        metadata: chunk.toMetadata(),
-      );
+    var position = 0;
+
+    Future<void> addOne(RagChunk chunk) async {
+      try {
+        await index.add(
+          id: '$docId:$position',
+          document: EmbeddingInput.text(chunk.text),
+          content: chunk.text,
+          metadata: chunk.toMetadata(),
+        );
+        position++;
+      } on EmbeddingInputTooLongException {
+        final parts = _halve(chunk);
+        if (parts.length < 2) rethrow;
+        for (final part in parts) {
+          await addOne(part);
+        }
+      }
+    }
+
+    for (final chunk in chunks) {
+      await addOne(chunk);
     }
     await index.flush();
+    return position;
+  }
+
+  /// Two passages of roughly half the tokens. Real PDFs mix prose with part
+  /// numbers and tables, so word count alone cannot promise a token budget.
+  List<RagChunk> _halve(RagChunk chunk) {
+    final words = chunk.text.split(' ');
+    if (words.length > 1) {
+      final middle = words.length ~/ 2;
+      return [
+        chunk.withText(words.sublist(0, middle).join(' ')),
+        chunk.withText(words.sublist(middle).join(' ')),
+      ];
+    }
+    final text = chunk.text;
+    if (text.length < 2) return const [];
+    final middle = text.length ~/ 2;
+    return [
+      chunk.withText(text.substring(0, middle)),
+      chunk.withText(text.substring(middle)),
+    ];
   }
 
   Future<List<RagChunk>> search(String question, {int topK = 8}) async {

@@ -2,13 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../on_device_rag/on_device_rag.dart';
 import 'document_info.dart';
 import 'library_api.dart';
 
 final libraryLogic = LibraryLogic();
 
 class LibraryLogic extends ChangeNotifier {
+  LibraryLogic() {
+    // Indexing, deletion and the document shipped with the app all change
+    // the local catalog; follow it instead of waiting for a manual refresh.
+    documentCatalog.addListener(_onCatalogChanged);
+  }
+
   final LibraryApi _api = LibraryApi();
+
+  void _onCatalogChanged() => unawaited(refresh());
   final List<DocumentInfo> documents = [];
   bool isLoading = false;
   bool isUploading = false;
