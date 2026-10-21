@@ -20,14 +20,14 @@ Do NOT refactor existing working code to comply with these rules. These rules ap
 7. **Use very clear names** — names must explain what is going on (files, classes, vars, fields).
 8. **Additive & safe** — never break existing behavior; default new fields/values so old records/data remain compatible.
 9. **End-to-end tests only** — always test against the real backend, real database, and real HTTP. Never mock or fake tests.
-10. **Local test DB only** — never run tests, e2e, or review links against the production database. Locally use `scripts/local_stack.sh` (Docker Qdrant on `:6333`); CI uses a throwaway Qdrant container. The Qdrant Cloud cluster is production and is only touched by the deploy workflow's final prod check.
+10. **Local backend only** — never run tests, e2e, or review links against production. Locally use `scripts/local_stack.sh` (the FastAPI backend on `:8001`); CI runs the same suite against the real backend. The backend no longer stores documents or vectors, so no test database is needed.
 11. **Send a public test link before the PR.** Run the app locally and expose it with a Cloudflare tunnel: `/home/aisurvivor/cloudflared tunnel --url http://localhost:<port>` (ngrok or Tailscale as fallback). Send the public link to humans for evaluation; humans decide the next step.
 12. **Humans approve first, then PR.** Only after human approval: open the PR, merge to master, let the pipeline run, and return the results to the human.
 13. **All code must be written in English, no spanglish.**
 
 ---
 
-**Project note:** this app is FastAPI + Flutter web. "Database" means Qdrant: chunks, file bytes and document metadata live there. Never point tests at `QDRANT_URL` from `.env`; tests must use `QDRANT_TEST_URL` (default `http://localhost:6333`).
+**Project note:** this app is FastAPI + Flutter web. The backend is stateless: `/extract` turns a PDF into per-page text, and `/chat` answers from excerpts the browser retrieved locally. Document PDFs, chunks and embeddings live on the device (browser storage + SQLite vector index); there is no Qdrant.
 
 ---
 

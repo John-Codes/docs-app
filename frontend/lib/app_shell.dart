@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/chat/chat_page.dart';
 import 'features/library/library_page.dart';
+import 'features/local_ai/local_ai.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -30,6 +31,7 @@ class _AppShellState extends State<AppShell> {
           ],
         ),
         actions: [
+          const OfflineBadge(),
           IconButton(
             tooltip: 'Toggle dark mode',
             onPressed: themeController.toggle,
@@ -42,7 +44,8 @@ class _AppShellState extends State<AppShell> {
           const SizedBox(width: 8),
         ],
       ),
-      body: wide
+      body: OfflineAwareBody(
+        child: wide
           ? Row(
               children: [
                 NavigationRail(
@@ -70,6 +73,7 @@ class _AppShellState extends State<AppShell> {
               ],
             )
           : IndexedStack(index: _index, children: _pages),
+      ),
       bottomNavigationBar: wide
           ? null
           : NavigationBar(

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../local_ai/local_ai.dart';
 import 'chat_input_bar.dart';
 import 'chat_logic.dart';
 import 'chat_message_bubble.dart';
+import 'chat_readiness_notice.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -58,8 +60,11 @@ class _ChatPageState extends State<ChatPage> {
                 ),
               ),
             ),
+            const LocalModeBar(),
+            const ChatReadinessNotice(),
             Padding(
-              padding: const EdgeInsets.only(bottom: 24),
+              // Keep the input off the screen edge on phones.
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
               child: const ChatInputBar(),
             ),
           ],

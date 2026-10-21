@@ -10,14 +10,7 @@ on:
 jobs:
   e2e:
     runs-on: ubuntu-latest
-    services:
-      qdrant:
-        image: qdrant/qdrant:latest
-        ports:
-          - 6333:6333
     env:
-      QDRANT_URL: http://localhost:6333
-      QDRANT_API_KEY: local-test-key
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
       CHAT_PROVIDER: nvidia
@@ -40,7 +33,7 @@ jobs:
             echo "::error::Missing OPENROUTER_API_KEY or NVIDIA_API_KEY secret — e2e tests require at least one LLM provider"
             exit 1
           fi
-      - name: End-to-end tests against local Qdrant and real APIs
+      - name: End-to-end tests against the real backend and real APIs
         working-directory: backend
         run: pytest tests -q
 

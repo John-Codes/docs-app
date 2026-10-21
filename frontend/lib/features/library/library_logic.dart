@@ -2,33 +2,39 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../on_device_rag/on_device_rag.dart';
 import 'document_info.dart';
 import 'library_api.dart';
 
 final libraryLogic = LibraryLogic();
 
 class LibraryLogic extends ChangeNotifier {
+  LibraryLogic() {
+    // Indexing, deletion and the document shipped with the app all change
+    // the local catalog; follow it instead of waiting for a manual refresh.
+    documentCatalog.addListener(_onCatalogChanged);
+  }
+
   final LibraryApi _api = LibraryApi();
+
+  void _onCatalogChanged() => unawaited(refresh());
   final List<DocumentInfo> documents = [];
   bool isLoading = false;
   bool isUploading = false;
   String? error;
   Timer? _poll;
 
+  /// Re-reads the local catalog. Cheap: it is a small JSON list in
+  /// localStorage, so polling during indexing costs nothing.
   Future<void> refresh({bool showSpinner = false}) async {
     if (showSpinner) {
       isLoading = true;
       notifyListeners();
     }
-    try {
-      final items = await _api.list();
-      documents
-        ..clear()
-        ..addAll(items);
-      error = null;
-    } catch (failure) {
-      error = _message(failure);
-    }
+    documents
+      ..clear()
+      ..addAll(_api.list());
+    error = null;
     isLoading = false;
     notifyListeners();
   }
@@ -41,6 +47,8 @@ class LibraryLogic extends ChangeNotifier {
     error = null;
     notifyListeners();
     try {
+      // Returns once the text is extracted and stored; embedding continues
+      // in the background and the polling below picks the result up.
       await _api.upload(name, bytes);
       await refresh();
       _startPolling();
@@ -63,7 +71,7 @@ class LibraryLogic extends ChangeNotifier {
 
   void _startPolling() {
     _poll?.cancel();
-    _poll = Timer.periodic(const Duration(seconds: 2), (timer) async {
+    _poll = Timer.periodic(const Duration(seconds: 1), (timer) async {
       await refresh();
       if (!documents.any((document) => document.isProcessing)) {
         timer.cancel();
@@ -71,6 +79,13 @@ class LibraryLogic extends ChangeNotifier {
     });
   }
 
-  String _message(Object failure) =>
-      failure.toString().replaceFirst('Exception: ', '');
+  /// Uploads and removals fail for known reasons (another tab holding the
+  /// database, storage the browser refuses) that each have a clear next
+  /// step; unknown ones keep their raw text for a bug report.
+  String _message(Object failure) {
+    if (isIndexBusy(failure) || failure.toString().contains('Web Locks API')) {
+      return describeIndexFailure(failure);
+    }
+    return failure.toString().replaceFirst('Exception: ', '');
+  }
 }

@@ -5,6 +5,7 @@ export 'chat_markdown_styles.dart';
 export 'chat_message.dart';
 export 'chat_message_bubble.dart';
 export 'chat_page.dart';
+export 'chat_readiness_notice.dart';
 export 'chat_send_button.dart';
 export 'chat_source.dart';
 export 'citation_links.dart';

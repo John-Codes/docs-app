@@ -11,11 +11,13 @@ class StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final label = document.isReady
-        ? 'Ready'
+        ? document.draft
+              ? 'Draft'
+              : 'Ready'
         : document.hasFailed
         ? 'Failed'
         : 'Indexing';
-    final color = document.isReady
+    final color = document.isReady && !document.draft
         ? scheme.primary
         : document.hasFailed
         ? scheme.error

@@ -15,11 +15,6 @@ class ApiClient {
 
   Uri uri(String path) => Uri.parse('$origin$path');
 
-  String documentFileUrl(String docId, {int? page}) {
-    final suffix = page != null && page > 0 ? '#page=$page' : '';
-    return '$origin/documents/$docId/file$suffix';
-  }
-
   Future<dynamic> getJson(String path) async {
     return _decode(await http.get(uri(path)));
   }
@@ -33,8 +28,9 @@ class ApiClient {
     return _decode(response);
   }
 
-  Future<dynamic> uploadPdf(String filename, Uint8List bytes) async {
-    final request = http.MultipartRequest('POST', uri('/documents'));
+  /// Text extraction only: the PDF itself is stored on the device.
+  Future<dynamic> extractPdf(String filename, Uint8List bytes) async {
+    final request = http.MultipartRequest('POST', uri('/extract'));
     request.files.add(
       http.MultipartFile.fromBytes('file', bytes, filename: filename),
     );

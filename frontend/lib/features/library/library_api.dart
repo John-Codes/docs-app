@@ -1,24 +1,17 @@
 import 'dart:typed_data';
 
-import '../../core/api/api_client.dart';
+import '../on_device_rag/on_device_rag.dart';
 import 'document_info.dart';
 
+/// The library API, now local: documents live in this browser.
+///
+/// The server is reached only through the extractor inside the ingest
+/// pipeline, and only for text extraction.
 class LibraryApi {
-  LibraryApi([ApiClient? api]) : _api = api ?? ApiClient();
+  List<DocumentInfo> list() => localLibrary.list();
 
-  final ApiClient _api;
+  Future<void> upload(String filename, Uint8List bytes) =>
+      localLibrary.add(filename: filename, bytes: bytes);
 
-  Future<List<DocumentInfo>> list() async {
-    final data = await _api.getJson('/documents') as List? ?? const [];
-    return data
-        .map((item) => DocumentInfo.fromJson(item as Map<String, dynamic>))
-        .toList();
-  }
-
-  Future<DocumentInfo> upload(String filename, Uint8List bytes) async {
-    final data = await _api.uploadPdf(filename, bytes);
-    return DocumentInfo.fromJson(data as Map<String, dynamic>);
-  }
-
-  Future<void> delete(String id) => _api.delete('/documents/$id');
+  Future<void> delete(String id) => localLibrary.remove(id);
 }

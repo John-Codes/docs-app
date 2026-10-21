@@ -62,15 +62,23 @@ class ChatMessageBubble extends StatelessWidget {
                 bottomRight: Radius.circular(18),
               ),
             ),
-            child: MarkdownBody(
-              data: linkifyCitations(message.text, message.sources),
-              selectable: true,
-              styleSheet: chatMarkdownStyles(context),
-              onTapLink: (text, href, title) {
-                final source = citationForLink(href, message.sources);
-                if (source != null) openCitation(context, source);
-              },
-            ),
+            child: message.isLoading && message.text.isEmpty
+                ? Text(
+                    'Thinking…',
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 15,
+                    ),
+                  )
+                : MarkdownBody(
+                    data: linkifyCitations(message.text, message.sources),
+                    selectable: true,
+                    styleSheet: chatMarkdownStyles(context),
+                    onTapLink: (text, href, title) {
+                      final source = citationForLink(href, message.sources);
+                      if (source != null) openCitation(context, source);
+                    },
+                  ),
           ),
           if (message.sources.isNotEmpty)
             Padding(
