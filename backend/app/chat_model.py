@@ -7,10 +7,18 @@ from app.config import Settings
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 MAX_TOKENS = 1200
 
-# A provider that is briefly overloaded answers late instead of failing fast,
-# and a single timed-out request used to leave the user with no answer at all.
-# One more try rides out that window; permanent errors still fail at once.
+# Only failures that can clear quickly are worth another try. A read timeout
+# means the provider is slow, not briefly unavailable: retrying it just makes
+# the user wait twice as long for the same failure.
 _RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+_RETRYABLE_FAILURES = (
+    httpx.ConnectError,
+    httpx.ConnectTimeout,
+    httpx.ReadError,
+    httpx.WriteError,
+    httpx.RemoteProtocolError,
+    httpx.PoolTimeout,
+)
 
 
 def _openrouter(settings: Settings, messages: list[dict]) -> tuple[str, str, dict]:
@@ -40,7 +48,9 @@ def _nvidia(settings: Settings, messages: list[dict]) -> tuple[str, str, dict]:
 
 
 def _post(url: str, key: str, body: dict, timeout: float) -> httpx.Response:
-    with httpx.Client(timeout=timeout) as client:
+    # Connecting must not eat the whole answer budget; only the reply may wait.
+    limits = httpx.Timeout(connect=10, read=timeout, write=10, pool=10)
+    with httpx.Client(timeout=limits) as client:
         return client.post(
             url,
             headers={
@@ -54,15 +64,15 @@ def _post(url: str, key: str, body: dict, timeout: float) -> httpx.Response:
 def _is_retryable(failure: Exception) -> bool:
     if isinstance(failure, httpx.HTTPStatusError):
         return failure.response.status_code in _RETRYABLE_STATUS
-    return isinstance(failure, (httpx.TimeoutException, httpx.NetworkError))
+    return isinstance(failure, _RETRYABLE_FAILURES)
 
 
 def chat_completion(settings: Settings, messages: list[dict]) -> str:
     """Ask the configured provider and return the assistant text.
 
-    Sends the same request again once when the provider times out, drops the
-    connection or returns 429/5xx. The answer is non-streaming, so a retry is
-    the only way to recover without asking the user to resend.
+    Sends the same request again once when the connection fails or the
+    provider returns 429/5xx. A slow answer is not retried: it would double
+    the wait and still fail, so it surfaces to the caller instead.
     """
     url, key, body = (
         _nvidia(settings, messages)
@@ -76,7 +86,7 @@ def chat_completion(settings: Settings, messages: list[dict]) -> str:
             response.raise_for_status()
             content = response.json()["choices"][0]["message"].get("content")
             return (content or "").strip()
-        except (httpx.HTTPStatusError, httpx.TimeoutException, httpx.NetworkError) as failure:
+        except (httpx.HTTPStatusError, httpx.TransportError) as failure:
             if attempt == attempts or not _is_retryable(failure):
                 raise
             time.sleep(settings.chat_retry_delay_seconds)
