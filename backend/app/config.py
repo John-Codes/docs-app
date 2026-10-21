@@ -19,6 +19,13 @@ class Settings:
     nvidia_api_key: str = ""
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
+    # Provider calls are non-streaming, so a timeout or an overloaded
+    # provider means no answer. One extra attempt covers a short bad window;
+    # permanent failures (401, 403, 404) still fail immediately.
+    chat_timeout_seconds: float = 120.0
+    chat_attempts: int = 2
+    chat_retry_delay_seconds: float = 2.0
+
     # HuggingFace token for the gated on-device model downloads.
     #
     # Served to the browser by GET /token at runtime. It must never be
@@ -50,5 +57,8 @@ def load_settings() -> Settings:
         nvidia_base_url=os.getenv(
             "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"
         ),
+        chat_timeout_seconds=float(os.getenv("CHAT_TIMEOUT_SECONDS", "120")),
+        chat_attempts=int(os.getenv("CHAT_ATTEMPTS", "2")),
+        chat_retry_delay_seconds=float(os.getenv("CHAT_RETRY_DELAY_SECONDS", "2")),
         huggingface_token=os.getenv("HUGGINGFACE_TOKEN", ""),
     )
