@@ -21,7 +21,7 @@ services:
       - key: CHAT_PROVIDER
         value: nvidia
       - key: CHAT_MODEL
-        value: openai/gpt-oss-20b
+        value: stepfun-ai/step-5-preview
       - key: NVIDIA_API_KEY
         sync: false
       - key: CHAT_TOP_K

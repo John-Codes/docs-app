@@ -15,7 +15,7 @@ class _Provider:
     """A real HTTP server that answers like a chat provider."""
 
     def __init__(self, replies: list[tuple[int, float]]):
-        self.replies = replies
+        self.replies = replies  # (status, delay); status 0 closes the connection
         self.requests = 0
 
 
@@ -27,6 +27,9 @@ def _handler(state: _Provider):
             status, delay = state.replies[position]
             if delay:
                 time.sleep(delay)
+            if status == 0:
+                self.close_connection = True
+                return
             body = json.dumps(
                 {"choices": [{"message": {"content": "grounded answer"}}]}
             ).encode()
@@ -49,8 +52,7 @@ def _handler(state: _Provider):
 def _provider(replies: list[tuple[int, float]]):
     state = _Provider(replies)
     server = ThreadingHTTPServer(("127.0.0.1", 0), _handler(state))
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
+    threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         yield f"http://127.0.0.1:{server.server_port}/v1", state
     finally:
@@ -77,19 +79,27 @@ def _settings(base_url: str, **overrides) -> Settings:
 MESSAGES = [{"role": "user", "content": "hi"}]
 
 
-def test_a_dropped_answer_is_retried():
+def test_a_busy_provider_is_retried():
     with _provider([(503, 0), (200, 0)]) as (url, state):
         answer = chat_completion(_settings(url), MESSAGES)
     assert answer == "grounded answer"
     assert state.requests == 2
 
 
-def test_a_timed_out_attempt_is_retried():
-    # The exact CI failure: the provider accepts the request but answers late.
-    with _provider([(200, 0.5), (200, 0)]) as (url, state):
-        answer = chat_completion(_settings(url, chat_timeout_seconds=0.2), MESSAGES)
+def test_a_dropped_connection_is_retried():
+    with _provider([(0, 0), (200, 0)]) as (url, state):
+        answer = chat_completion(_settings(url), MESSAGES)
     assert answer == "grounded answer"
     assert state.requests == 2
+
+
+def test_a_slow_answer_is_not_retried():
+    # Retrying a read timeout doubles the wait and still fails; the user
+    # needs the failure, not another 90 seconds of waiting.
+    with _provider([(200, 0.5), (200, 0)]) as (url, state):
+        with pytest.raises(httpx.ReadTimeout):
+            chat_completion(_settings(url, chat_timeout_seconds=0.2), MESSAGES)
+    assert state.requests == 1
 
 
 def test_a_permanent_error_is_not_retried():

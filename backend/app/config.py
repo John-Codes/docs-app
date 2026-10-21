@@ -19,10 +19,10 @@ class Settings:
     nvidia_api_key: str = ""
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
-    # Provider calls are non-streaming, so a timeout or an overloaded
-    # provider means no answer. One extra attempt covers a short bad window;
-    # permanent failures (401, 403, 404) still fail immediately.
-    chat_timeout_seconds: float = 120.0
+    # Provider calls are non-streaming, so a slow answer is a failed answer.
+    # The read timeout stays well above a normal reply; connection failures
+    # get one quick retry, a slow answer does not.
+    chat_timeout_seconds: float = 90.0
     chat_attempts: int = 2
     chat_retry_delay_seconds: float = 2.0
 
@@ -48,7 +48,7 @@ def load_settings() -> Settings:
         chat_provider=chat_provider,
         chat_model=os.getenv(
             "CHAT_MODEL",
-            "openai/gpt-oss-20b"
+            "stepfun-ai/step-5-preview"
             if chat_provider == "nvidia"
             else "anthropic/claude-haiku-5.5",
         ),
@@ -57,7 +57,7 @@ def load_settings() -> Settings:
         nvidia_base_url=os.getenv(
             "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"
         ),
-        chat_timeout_seconds=float(os.getenv("CHAT_TIMEOUT_SECONDS", "120")),
+        chat_timeout_seconds=float(os.getenv("CHAT_TIMEOUT_SECONDS", "90")),
         chat_attempts=int(os.getenv("CHAT_ATTEMPTS", "2")),
         chat_retry_delay_seconds=float(os.getenv("CHAT_RETRY_DELAY_SECONDS", "2")),
         huggingface_token=os.getenv("HUGGINGFACE_TOKEN", ""),
