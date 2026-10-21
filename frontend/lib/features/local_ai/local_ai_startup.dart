@@ -58,14 +58,18 @@ Future<void> _cleanupInterruptedFiles() async {
   }
 }
 
-/// Smart auto-download: start the ~530 MB answer-model download without
-/// asking only when the connection is verifiably unmetered (Wi-Fi/Ethernet,
-/// data saver off) and the user has not declined before. Otherwise the
-/// badge shows "Get offline mode" and the user stays in control.
+/// Auto-download the ~530 MB answer model without asking.
+///
+/// The unmetered check is deliberately not used: the browser cannot confirm
+/// a connection on Safari or Firefox, so requiring it left users with no
+/// on-device answers and no idea why. The download starts whenever the app is
+/// online and the user has not stopped it before; the download sheet's Stop
+/// button cancels it and remembers that choice, so it is never restarted
+/// against someone's wishes.
 Future<void> _maybeAutoDownload() async {
   try {
     if (await localAiPreferences.isDownloadDeclined()) return;
-    if (!browserConnectivity.isUnmetered()) return;
+    if (!browserConnectivity.online) return;
     unawaited(localModelStore.download());
   } catch (_) {
     // Auto-download is opportunistic; never let it surface an error.

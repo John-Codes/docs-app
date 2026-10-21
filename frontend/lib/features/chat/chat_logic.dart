@@ -95,10 +95,8 @@ class ChatLogic extends ChangeNotifier {
     if (documents.isEmpty) {
       return 'Upload a PDF first, then ask about it.';
     }
-    if (!searchModelStore.isInstalled) {
-      return 'Search is not ready on this device yet. Download the search '
-          'model from the badge at the top, then ask again.';
-    }
+    final waiting = _searchModelWaitMessage();
+    if (waiting != null) return waiting;
     if (!documents.any((document) => document.isReady && document.chunks > 0)) {
       return documents.any((document) => document.isProcessing)
           ? 'The documents are still being indexed. Try again in a moment.'
@@ -113,12 +111,28 @@ class ChatLogic extends ChangeNotifier {
   /// tab holding the database and a missing model need different fixes —
   /// so it comes from the failure itself.
   String _searchFailedMessage(Object failure) {
-    if (!searchModelStore.isInstalled) {
-      return 'Search is not ready on this device yet. Download the search '
-          'model from the badge at the top, then ask again.';
-    }
+    final waiting = _searchModelWaitMessage();
+    if (waiting != null) return waiting;
     debugPrint('[on-device-rag] chat search failed: $failure');
     return describeIndexFailure(failure);
+  }
+
+  /// What to say when the search model is the reason search did not run.
+  ///
+  /// A question asked mid-download used to be answered with "not ready yet",
+  /// which reads like a fault and gives no sense of when to try again. The
+  /// live percentage says the app is working on it. Null when the model is
+  /// installed, so the caller falls through to its own reason.
+  String? _searchModelWaitMessage() {
+    if (searchModelStore.isInstalled) return null;
+    if (localAiState.searchDownloadActive) {
+      return 'Still getting this device ready — the search model is '
+          '${localAiState.searchProgress}% downloaded. Ask again once it '
+          'finishes and I can read your documents.';
+    }
+    return 'This device needs its search model before it can read your '
+        'documents. Tap Download now in the bar above the message box, '
+        'then ask again.';
   }
 
   /// Adds an assistant bubble unless told otherwise, then ends the turn.

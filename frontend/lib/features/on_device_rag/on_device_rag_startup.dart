@@ -24,7 +24,13 @@ Future<void> startOnDeviceRag() async {
     LiteRtWebRuntime.wasmPath = '/wasm/';
 
     localAiState.update(searchReady: searchModelStore.isInstalled);
-    if (!searchModelStore.isInstalled && browserConnectivity.isUnmetered()) {
+    // The search model is required for every answer, cloud or on-device, so
+    // it starts by itself rather than waiting for the user to find the
+    // badge. The browser cannot confirm an unmetered connection on Safari or
+    // Firefox, so gating on that left those users with an app that could
+    // never answer anything; the download sheet's Stop button is the escape
+    // hatch instead.
+    if (!searchModelStore.isInstalled && browserConnectivity.online) {
       unawaited(searchModelStore.download());
     }
     browserConnectivity.addListener(_reindexDraftsWhenOnline);
@@ -34,15 +40,26 @@ Future<void> startOnDeviceRag() async {
   }
 }
 
-/// Brings the library up to date once search is installed: the document
+/// Brings the library up to date, then indexes what needs it: the document
 /// that ships with the app, anything a previous session left mid-index, and
 /// — only when the passage pipeline changed — anything that failed under the
 /// older splitter. Never forces the 114 MB download, and never re-embeds a
 /// ready document on app load.
+///
+/// The bundled manual is stored first, without waiting for the search model:
+/// the file ships inside the app, so its presence in the library has nothing
+/// to do with the embedder. Waiting for the model here meant a fresh visitor
+/// saw an empty library for as long as the download took — or forever, if it
+/// failed or was stopped. Only its indexing waits, and [DocumentIngest] owns
+/// that wait.
 Future<void> _restoreLibrary() async {
   try {
-    if (!await searchModelStore.whenReady()) return;
     await bundledDocument.seed();
+  } catch (_) {
+    // A convenience only; uploads and cloud answers do not depend on it.
+  }
+  try {
+    if (!await searchModelStore.whenReady()) return;
     await localLibrary.resumeInterrupted();
     await _healFailedDocumentsOnce();
   } catch (_) {
