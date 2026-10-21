@@ -14,7 +14,9 @@ jobs:
       OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
       CHAT_PROVIDER: nvidia
-      CHAT_MODEL: openai/gpt-oss-20b
+      # The model comes from backend/app/config.py so CI tests the same
+      # default production runs. Overriding it here made CI call a slower
+      # model than the app and time out.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
