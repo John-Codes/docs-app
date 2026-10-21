@@ -16,7 +16,9 @@ class LocalModeBar extends StatelessWidget {
       builder: (context, _) {
         if (!localAiState.available) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 4),
+          // ~1rem beneath the switch so it does not crowd the notice or the
+          // message box on phones.
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
           child: SegmentedButton<bool>(
             segments: const [
               ButtonSegment(value: false, label: Text('Cloud')),
