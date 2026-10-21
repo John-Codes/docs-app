@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 
+from app.chat.answer_guard import NO_ANSWER, guard_answer
 from app.chat.citations import apply_markers, build_citations
 from app.chat.prompt import build_messages
 from app.chat.schemas import ChatRequest, ChatResponse, Excerpt
@@ -7,8 +8,6 @@ from app.chat_model import chat_completion
 from app.clients import get_settings
 
 router = APIRouter(prefix="/chat", tags=["chat"])
-
-_NO_ANSWER = "The documents don't cover that."
 
 
 def _source(excerpt: Excerpt) -> dict:
@@ -35,7 +34,7 @@ def chat(request: ChatRequest) -> ChatResponse:
 
     sources = [_source(excerpt) for excerpt in request.excerpts if excerpt.text.strip()]
     if not sources:
-        return ChatResponse(answer=_NO_ANSWER, sources=[])
+        return ChatResponse(answer=NO_ANSWER, sources=[])
 
     history = [
         {"role": turn.role, "content": turn.content}
@@ -43,9 +42,10 @@ def chat(request: ChatRequest) -> ChatResponse:
         if turn.role in ("user", "assistant")
     ][-6:]
 
-    answer = chat_completion(get_settings(), build_messages(question, history, sources))
-    if not answer or "documents don't cover that" in answer.lower():
-        return ChatResponse(answer=answer or _NO_ANSWER, sources=[])
+    reply = chat_completion(get_settings(), build_messages(question, history, sources))
+    answer, show_sources = guard_answer(reply, len(sources))
+    if not show_sources:
+        return ChatResponse(answer=answer, sources=[])
 
     citations, marker_map = build_citations(sources)
     return ChatResponse(answer=apply_markers(answer, marker_map), sources=citations)
