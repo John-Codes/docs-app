@@ -48,7 +48,7 @@ def load_settings() -> Settings:
         chat_provider=chat_provider,
         chat_model=os.getenv(
             "CHAT_MODEL",
-            "stepfun-ai/step-5-preview"
+            "nvidia/nemotron-3-ultra-550b-a55b"
             if chat_provider == "nvidia"
             else "anthropic/claude-haiku-5.5",
         ),

@@ -13,7 +13,7 @@ cites the page it came from and never invents content.
 - **Vectors + file storage:** Qdrant Cloud (free tier)
 - **Embeddings:** OpenRouter, `nvidia/llama-nemotron-embed-vl-1b-v2:free`
   (2048-dim), with an automatic NVIDIA NIM fallback that serves the same model
-- **Chat:** NVIDIA NIM, `openai/gpt-oss-20b` by default (OpenRouter also supported)
+- **Chat:** NVIDIA NIM, `nvidia/nemotron-3-ultra-550b-a55b` by default (OpenRouter also supported). Answers that do not cite a supplied excerpt are replaced with the refusal before they reach the client.
 - **Deploy:** one Render free web service (Docker) serving the API and the
   Flutter build
 
@@ -71,7 +71,7 @@ are never committed.
 | `QDRANT_URL`, `QDRANT_API_KEY` | Qdrant Cloud cluster |
 | `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS` | Defaults: nemotron VL embed, `2048` |
 | `CHAT_PROVIDER` | `nvidia` (default) or `openrouter` |
-| `CHAT_MODEL` | Default: `openai/gpt-oss-20b` |
+| `CHAT_MODEL` | Default: `nvidia/nemotron-3-ultra-550b-a55b` |
 | `NVIDIA_API_KEY`, `NVIDIA_BASE_URL` | Required when `CHAT_PROVIDER=nvidia` |
 | `CHAT_TOP_K` | Retrieved passages per question (default `8`) |
 | `MAX_UPLOAD_MB` | Upload guard for the 512 MB instance (default `50`) |
