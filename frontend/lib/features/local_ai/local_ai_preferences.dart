@@ -7,7 +7,7 @@ final localAiPreferences = LocalAiPreferences();
 /// Remembers whether the user said "not now" to the offline model download.
 ///
 /// Smart auto-download never overrides a human decision: once declined,
-/// the 530 MB download only ever starts again from the explicit
+/// the 700 MB download only ever starts again from the explicit
 /// "Get offline mode" button.
 class LocalAiPreferences {
   Future<void> markDownloadDeclined() async {

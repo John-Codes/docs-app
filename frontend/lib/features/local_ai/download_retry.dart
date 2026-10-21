@@ -15,12 +15,18 @@ import 'dart:async';
 ///
 /// [isCancelled] is checked before every wait and attempt: a download the
 /// user stopped must never come back to life on its own.
+///
+/// [shouldRetry] decides whether a failure is worth another try. Pass
+/// [isRetryableDownloadFailure]: a full disk or a refused license must fail
+/// at once, because retrying it only downloads the same hundreds of
+/// megabytes again.
 Future<void> retrying({
   required Future<void> Function() attempt,
   required bool Function() isCancelled,
   int tries = 3,
   Duration firstDelay = const Duration(seconds: 2),
   void Function(int failedAttempt)? onRetry,
+  bool Function(Object failure)? shouldRetry,
 }) async {
   var delay = firstDelay;
   for (var attemptNumber = 1; ; attemptNumber++) {
@@ -28,8 +34,9 @@ Future<void> retrying({
     try {
       await attempt();
       return;
-    } catch (_) {
-      if (attemptNumber >= tries || isCancelled()) rethrow;
+    } catch (failure) {
+      final permanent = shouldRetry != null && !shouldRetry(failure);
+      if (attemptNumber >= tries || isCancelled() || permanent) rethrow;
       onRetry?.call(attemptNumber);
       await Future<void>.delayed(delay);
       // Grow the wait so a service that is briefly unavailable is not
@@ -37,4 +44,39 @@ Future<void> retrying({
       delay *= 2;
     }
   }
+}
+
+/// True for failures another try can plausibly fix: a dropped connection, a
+/// timeout, a rate limit, a server hiccup. False for anything permanent —
+/// storage exhaustion, a gated model, a bad token, a missing file — where a
+/// retry only repeats the same long download.
+bool isRetryableDownloadFailure(Object failure) {
+  final text = failure.toString().toLowerCase();
+  const permanent = [
+    'quota',
+    'storage',
+    'no space',
+    'out of memory',
+    'allocation',
+    'forbidden',
+    'unauthorized',
+    'not found',
+    'cancel',
+  ];
+  if (permanent.any(text.contains)) return false;
+  const transient = [
+    'network',
+    'failed to fetch',
+    'timeout',
+    'timed out',
+    'rate limit',
+    '429',
+    '500',
+    '502',
+    '503',
+    '504',
+    'socket',
+    'connection',
+  ];
+  return transient.any(text.contains);
 }

@@ -11,7 +11,7 @@ enum OnDeviceModel { embeddings, languageModel }
 /// Runs on-device model work one stage at a time and, on devices without
 /// memory headroom, unloads the other model first.
 ///
-/// The embedding model (~110 MB) and the answer model (~530 MB) are both
+/// The embedding model (~110 MB) and the answer model (~700 MB) are both
 /// large. On a phone they must never be resident together: embedding a
 /// document and answering a question do not overlap, so the safe order is
 /// always "embed, unload, generate" and back again. On a roomy desktop both

@@ -4,6 +4,9 @@ import 'download_retry.dart';
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
 import 'model_token.dart';
+import 'opfs_models.dart';
+import 'storage_guard.dart';
+import 'storage_room.dart';
 
 final localModelStore = LocalModelStore();
 
@@ -32,6 +35,10 @@ class LocalModelStore {
     return configured.isEmpty ? _defaultUrl : configured;
   }
 
+  /// The file name the engine stores the model under, taken from the URL so a
+  /// mirrored copy keeps working.
+  String get modelFile => Uri.parse(modelUrl).pathSegments.last;
+
   /// Starts the background download. Safe to call again while it runs, and
   /// safe after an interrupted download — installModel restarts and picks
   /// up what it can. A manual start counts as fresh consent, so it clears
@@ -39,6 +46,32 @@ class LocalModelStore {
   Future<void> download() async {
     if (localAiState.downloadActive) return;
     await localAiPreferences.clearDeclined();
+
+    // Ask the browser to keep this data instead of evicting it later.
+    await requestPersistentStorage();
+
+    // A half-written file from an interrupted download looks "cached" to the
+    // engine and would be installed without downloading anything. Drop it
+    // first, which also frees its space before the room check.
+    await discardIncompleteModel(modelFile);
+
+    // A full browser is the one failure no retry can fix, and the browser
+    // only reports it after the whole file has been fetched. Ask first.
+    final needed = neededFor(
+      modelBytes: answerModelBytes,
+      searchInstalled: localAiState.searchReady,
+    );
+    final room = await readStorageRoom(needed);
+    if (room != null && !room.enough) {
+      localAiState.update(
+        downloading: false,
+        failed: true,
+        progress: 0,
+        error: storageShortageMessage(room),
+      );
+      return;
+    }
+
     _stopped = false;
     localAiState.update(
       downloading: true,
@@ -51,10 +84,12 @@ class LocalModelStore {
       await retrying(
         // A cancelled token stays cancelled, so every attempt gets its own;
         // the store's flag is what actually decides whether to keep going.
-        attempt: () {
+        attempt: () async {
+          // A retry after a failed write must not reuse the broken file.
+          await discardIncompleteModel(modelFile);
           final attemptToken = CancelToken();
           _cancelToken = attemptToken;
-          return FlutterEdgeAi.installModel(
+          await FlutterEdgeAi.installModel(
             modelType: ModelType.gemmaIt,
             fileType: ModelFileType.task,
           )
@@ -63,12 +98,18 @@ class LocalModelStore {
               .withProgress((int progress) {
             localAiState.update(progress: progress);
           }).install();
+          await markModelComplete(modelFile);
         },
         isCancelled: () => _stopped,
+        // A dropped connection is worth another try; a full disk or a
+        // refused license is not, and retrying would fetch 700 MB again.
+        shouldRetry: isRetryableDownloadFailure,
         onRetry: (_) => localAiState.update(progress: 0),
       );
       localAiState.update(downloading: false, model: true, progress: 100);
     } catch (failure) {
+      // Free whatever the failed attempt wrote so the next try has room.
+      await discardIncompleteModel(modelFile);
       // A cancelled download is quiet; a real failure explains itself in
       // the download sheet — never as a chat error, never blocking anything.
       final cancelled = CancelToken.isCancel(failure);
@@ -96,6 +137,7 @@ class LocalModelStore {
   /// shows. Cancelled downloads stay silent; anything else gets a plain,
   /// actionable message instead of the invisible failure it used to be.
   String _explainDownloadFailure(Object failure) {
+    if (isStorageFailure(failure)) return storageFailureMessage();
     if (failure is! DownloadException) {
       return 'The download could not start — check the connection and '
           'retry.';

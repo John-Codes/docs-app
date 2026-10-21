@@ -23,7 +23,7 @@ class BrowserConnectivity extends ChangeNotifier {
   /// True only when the connection is verifiably unmetered: Wi-Fi or
   /// Ethernet with the browser's data saver off. Safari and Firefox do not
   /// expose this, so "unknown" counts as metered — the app then shows the
-  /// "Get offline mode" button instead of spending 530 MB of mobile data.
+  /// "Get offline mode" button instead of spending 700 MB of mobile data.
   bool isUnmetered() {
     if (!kIsWeb) return false;
     try {

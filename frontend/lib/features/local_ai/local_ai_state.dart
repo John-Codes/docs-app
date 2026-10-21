@@ -42,6 +42,10 @@ class LocalAiState extends ChangeNotifier {
   /// simply unavailable until it succeeds.
   bool searchFailed = false;
 
+  /// Plain-language reason for the last search-model failure, shown in the
+  /// download sheet. Null when there is nothing to show.
+  String? searchError;
+
   /// 0-100 while the search model downloads.
   int searchProgress = 0;
 
@@ -69,6 +73,7 @@ class LocalAiState extends ChangeNotifier {
     bool? searchDownloading,
     bool? searchFailed,
     int? searchProgress,
+    String? searchError,
   }) {
     if (supported != null) deviceSupported = supported;
     if (engine != null) engineReady = engine;
@@ -83,6 +88,9 @@ class LocalAiState extends ChangeNotifier {
     if (searchDownloading != null) searchDownloadActive = searchDownloading;
     if (searchFailed != null) this.searchFailed = searchFailed;
     if (searchProgress != null) this.searchProgress = searchProgress;
+    if (searchError != null) {
+      this.searchError = searchError.isEmpty ? null : searchError;
+    }
     notifyListeners();
   }
 }

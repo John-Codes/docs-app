@@ -90,5 +90,68 @@ void main() {
       );
       expect(tries, 1);
     });
+
+    test('a permanent failure is not retried at all', () async {
+      // Retrying a full disk just fetches the whole model again for nothing.
+      var tries = 0;
+      await expectLater(
+        retrying(
+          attempt: () async {
+            tries++;
+            throw Exception('QuotaExceededError: Quota exceeded.');
+          },
+          isCancelled: () => false,
+          firstDelay: Duration.zero,
+          shouldRetry: isRetryableDownloadFailure,
+        ),
+        throwsA(isA<Exception>()),
+      );
+      expect(tries, 1);
+    });
+
+    test('a transient failure still uses the full retry budget', () async {
+      var tries = 0;
+      await expectLater(
+        retrying(
+          attempt: () async {
+            tries++;
+            throw Exception('Network error: Failed to fetch');
+          },
+          isCancelled: () => false,
+          tries: 3,
+          firstDelay: Duration.zero,
+          shouldRetry: isRetryableDownloadFailure,
+        ),
+        throwsA(isA<Exception>()),
+      );
+      expect(tries, 3);
+    });
+  });
+
+  group('isRetryableDownloadFailure', () {
+    test('transient problems are retryable', () {
+      expect(isRetryableDownloadFailure('Network error: timed out'), isTrue);
+      expect(isRetryableDownloadFailure('Rate limit exceeded (HTTP 429)'),
+          isTrue);
+      expect(isRetryableDownloadFailure('Server error (HTTP 503)'), isTrue);
+    });
+
+    test('permanent problems are not', () {
+      expect(
+        isRetryableDownloadFailure('QuotaExceededError: Quota exceeded.'),
+        isFalse,
+      );
+      expect(
+        isRetryableDownloadFailure('Access forbidden (HTTP 403)'),
+        isFalse,
+      );
+      expect(
+        isRetryableDownloadFailure('Authentication required (HTTP 401)'),
+        isFalse,
+      );
+      expect(isRetryableDownloadFailure('Model not found (HTTP 404)'),
+          isFalse);
+      expect(isRetryableDownloadFailure('Download was canceled.'), isFalse);
+    });
   });
 }

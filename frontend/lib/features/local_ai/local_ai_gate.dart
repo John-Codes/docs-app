@@ -4,9 +4,11 @@ import 'dart:js_interop_unsafe';
 import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
-/// Decides whether this browser can realistically run the ~530 MB WebGPU
+import 'storage_room.dart';
+
+/// Decides whether this browser can realistically run the 700 MB WebGPU
 /// model. Any doubt (missing API, rejected GPU adapter, too few cores, too
-/// little storage quota) returns false — the app then silently stays on
+/// little free storage) returns false — the app then silently stays on
 /// the cloud chat and nothing about the local mode is ever shown.
 Future<bool> isDeviceSupportedForLocalAi() async {
   if (!kIsWeb) return false;
@@ -23,8 +25,8 @@ Future<bool> isDeviceSupportedForLocalAi() async {
 
 const _minCores = 4;
 const _minDeviceMemoryGb = 4.0;
-// The model is ~530 MB; keep headroom for the browser cache and the app.
-const _minStorageQuotaBytes = 1200 * 1024 * 1024;
+// The answer model is 700 MB and must fit on disk alongside everything else.
+const _minFreeStorageBytes = answerModelBytes + storageHeadroomBytes;
 
 Future<bool> _hasWebGpu(JSObject navigator) async {
   final gpu = navigator['gpu'];
@@ -58,7 +60,18 @@ Future<bool> _hasStorageForModel(JSObject navigator) async {
   final pending = (estimate as JSFunction).callAsFunction(storage);
   if (pending == null || pending.isUndefinedOrNull) return true;
   final estimateMap = await (pending as JSPromise<JSAny?>).toDart;
-  final quota = (estimateMap as JSObject)['quota'];
-  if (quota == null || quota.isUndefinedOrNull) return true;
-  return (quota as JSNumber).toDartInt >= _minStorageQuotaBytes;
+  if (estimateMap == null || estimateMap.isUndefinedOrNull) return true;
+  final map = estimateMap as JSObject;
+  final quota = _bytes(map['quota']);
+  if (quota <= 0) return true; // Unknown: never block on a missing number.
+  // What matters is free space, not the total quota: a large quota that is
+  // already used up still cannot hold the model, and that was exactly the
+  // "download stops at 99%" failure.
+  final free = quota - _bytes(map['usage']);
+  return free >= _minFreeStorageBytes;
+}
+
+int _bytes(JSAny? value) {
+  if (value == null || value.isUndefinedOrNull) return 0;
+  return value.isA<JSNumber>() ? (value as JSNumber).toDartInt : 0;
 }

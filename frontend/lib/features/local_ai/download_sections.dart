@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../library/copyable_error.dart';
 import '../on_device_rag/search_model_store.dart';
 import 'download_progress.dart';
 import 'local_ai_state.dart';
@@ -44,6 +45,10 @@ class SearchModelSection extends StatelessWidget {
           'Indexes your PDFs and finds the passages that answer a question. '
           'Required for all answers, cloud or on-device.',
         ),
+        if (localAiState.searchFailed && localAiState.searchError != null) ...[
+          const SizedBox(height: 10),
+          CopyableError(localAiState.searchError!),
+        ],
         const SizedBox(height: 10),
         FilledButton.tonalIcon(
           onPressed: searchModelStore.download,
@@ -70,9 +75,8 @@ class AnswerModelSection extends StatelessWidget {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
+          CopyableError(
             localAiState.downloadError ?? 'The download could not start.',
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
@@ -84,8 +88,14 @@ class AnswerModelSection extends StatelessWidget {
       );
     }
     if (localAiState.downloadActive) {
+      // The browser reports byte progress only until the fetch ends; writing
+      // the file to disk comes after and still takes a while. Say so instead
+      // of leaving the bar frozen at 99% with no explanation.
+      final saving = localAiState.downloadProgress >= 99;
       return DownloadProgress(
-        label: 'Answer model ${localAiState.downloadProgress}%',
+        label: saving
+            ? 'Answer model — saving to disk…'
+            : 'Answer model ${localAiState.downloadProgress}%',
         value: localAiState.downloadProgress / 100,
         onStop: localModelStore.cancel,
       );
@@ -93,7 +103,7 @@ class AnswerModelSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('On-device answers (about 530 MB)', style: style),
+        Text('On-device answers (about 700 MB)', style: style),
         const SizedBox(height: 6),
         const Text(
           'Optional: the model that writes answers on this device, with no '

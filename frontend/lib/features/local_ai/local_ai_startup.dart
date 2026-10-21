@@ -12,6 +12,7 @@ import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
 import 'local_model_store.dart';
 import 'model_token.dart';
+import 'opfs_models.dart';
 
 /// Boots the on-device AI engine in the background.
 ///
@@ -28,10 +29,17 @@ Future<void> startLocalAi() async {
       embeddingBackends: const [LiteRtEmbeddingBackend()],
       embeddingTokenizers: const [GemmaEmbeddingTokenizers()],
       huggingFaceToken: token,
+      // Stream model bytes straight to disk (OPFS) instead of buffering the
+      // whole file in memory and copying it into the Cache API. The 700 MB
+      // answer model otherwise peaks at well over a gigabyte of RAM, and a
+      // full browser only refused it after the entire fetch had finished.
+      // Browsers without OPFS fall back to the Cache API on their own.
+      webStorageMode: WebStorageMode.streaming,
     ).timeout(_startupTimeout, onTimeout: () {});
 
     localAiState.update(engine: true);
     await _cleanupInterruptedFiles();
+    await _repairInstalledModels();
     unawaited(startOnDeviceRag());
 
     if (!await isDeviceSupportedForLocalAi()) return;
@@ -58,7 +66,55 @@ Future<void> _cleanupInterruptedFiles() async {
   }
 }
 
-/// Auto-download the ~530 MB answer model without asking.
+/// Deletes streamed model files that were never finished and forgets their
+/// stale "installed" records. Without this an interrupted 700 MB download
+/// leaves a file the engine happily treats as a cached model, so the app
+/// claims offline mode is ready for a model that cannot load.
+Future<void> _repairInstalledModels() async {
+  // Streaming mode uses OPFS; without it the browser keeps models in the
+  // Cache API, so "not in OPFS" says nothing about the model being missing.
+  // Repairing there would delete a healthy record and re-download each load.
+  if (!await opfsAvailable()) return;
+  var answerChanged = false;
+  var searchChanged = false;
+  try {
+    answerChanged = await _repairModel(localModelStore.modelFile);
+  } catch (_) {}
+  try {
+    searchChanged =
+        await _repairModel(SearchModelStore.modelFile) || searchChanged;
+    searchChanged =
+        await _repairModel(SearchModelStore.tokenizerFile) || searchChanged;
+  } catch (_) {}
+  try {
+    if (answerChanged) await FlutterEdgeAi.clearActiveInferenceIdentity();
+    if (searchChanged) await FlutterEdgeAi.clearActiveEmbeddingIdentity();
+  } catch (_) {
+    // A stale identity is retried at the next start.
+  }
+}
+
+/// Removes one stored file that is not proven complete, plus the installation
+/// record that would otherwise make the next install skip the download.
+Future<bool> _repairModel(String filename) async {
+  final cached = await readCachedModel(filename);
+  final recorded = await FlutterEdgeAi.isModelInstalled(filename);
+  // A complete file is healthy whether or not a record exists: without a
+  // record the next install records it and reuses the bytes.
+  if (cached?.complete ?? false) return false;
+  if (!recorded && cached == null) return false;
+  if (recorded) {
+    try {
+      await FlutterEdgeAi.uninstallModel(filename);
+    } catch (_) {
+      // Nothing recorded under that name after all.
+    }
+  }
+  await discardIncompleteModel(filename);
+  return true;
+}
+
+/// Auto-download the ~700 MB answer model without asking.
 ///
 /// The unmetered check is deliberately not used: the browser cannot confirm
 /// a connection on Safari or Firefox, so requiring it left users with no
