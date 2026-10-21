@@ -1,6 +1,7 @@
-/// Bumped whenever passage building changes. A document that failed under
-/// an older value is retried once when this changes — never on every load.
-const onDeviceRagPipelineVersion = 2;
+/// Bumped whenever passage building changes. A document indexed or failed
+/// under an older value is rebuilt once when this changes — never on every
+/// load.
+const onDeviceRagPipelineVersion = 3;
 
 /// Measures a text exactly as the embedder will: task prefix, BOS and EOS
 /// included. Provided by the index, which owns the loaded tokenizer.

@@ -80,7 +80,12 @@ class DocumentIngest {
         },
       );
       await documentCatalog.upsert(
-        document.copyWith(status: 'ready', chunks: indexed, error: ''),
+        document.copyWith(
+          status: 'ready',
+          chunks: indexed,
+          error: '',
+          pipelineVersion: onDeviceRagPipelineVersion,
+        ),
       );
     } catch (failure) {
       // The stored message is what the library shows, so it must say what
@@ -109,6 +114,30 @@ class DocumentIngest {
     );
     await pdfBlobStore.delete(document.id);
     await documentCatalog.remove(document.id);
+  }
+
+  /// Rebuilds a document's passages with the current pipeline.
+  ///
+  /// Called when the passage pipeline changed, so it must not depend on the
+  /// server being up: the file is on the device, and the on-device parser
+  /// can read it. Server text is still preferred when it is reachable, since
+  /// it is the better extraction. A document whose file is gone is left
+  /// alone rather than failed — there is nothing to rebuild it from.
+  Future<void> rebuild(DocumentInfo document) async {
+    final bytes = await pdfBlobStore.read(document.id);
+    if (bytes == null) return;
+
+    final extraction = await extractorRouter.extract(document.filename, bytes);
+    await localIndex.removeDocument(document.id, document.chunks);
+    final rebuilt = document.copyWith(
+      draft: extraction.draft,
+      pages: extraction.pages.length,
+      chunks: 0,
+      status: 'processing',
+      error: '',
+    );
+    await documentCatalog.upsert(rebuilt);
+    await indexPages(rebuilt, extraction.pages);
   }
 
   /// Re-does a draft extraction with the server parser, then re-indexes it.

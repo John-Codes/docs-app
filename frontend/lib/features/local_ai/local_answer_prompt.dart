@@ -10,14 +10,25 @@ const localSystemInstruction =
     "The documents don't cover that. Keep answers brief.";
 
 /// Wraps the retrieved passages and the question into one prompt turn.
+///
+/// Small models drift: given a page header, a stray page number or a wall of
+/// punctuation, they copy it instead of answering. The excerpts are therefore
+/// fenced off as data, on lines of their own, with the question clearly after
+/// them — so "answer the question" is the last thing the model read.
 String buildGroundedQuestion(String question, List<RagChunk> chunks) {
-  final excerpts = StringBuffer('Excerpts from the documents:\n');
+  final excerpts = StringBuffer()
+    ..writeln('The text between the markers is quoted reference material.')
+    ..writeln('--- BEGIN EXCERPTS ---');
   for (final chunk in chunks) {
-    excerpts.writeln();
-    excerpts.writeln('Source [${chunk.docTitle}, p. ${chunk.page}]:');
-    excerpts.writeln(chunk.text);
+    excerpts
+      ..writeln()
+      ..writeln('[${chunk.docTitle}, p. ${chunk.page}]')
+      ..writeln(chunk.text.trim());
   }
-  excerpts.writeln();
-  excerpts.write('Question: $question');
-  return excerpts.toString();
+  excerpts
+    ..writeln()
+    ..writeln('--- END EXCERPTS ---')
+    ..writeln()
+    ..writeln('Using only the excerpts above, answer this question.');
+  return '$excerpts\nQuestion: $question';
 }

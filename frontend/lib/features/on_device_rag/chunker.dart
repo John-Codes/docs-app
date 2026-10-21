@@ -1,3 +1,4 @@
+import 'leader_dots.dart';
 import 'passage_budget.dart';
 import 'rag_chunk.dart';
 import 'seam_overlap.dart';
@@ -16,6 +17,12 @@ const _defaultBudget = 240;
 /// exactly, so no word, number or identifier can be lost or severed. A page
 /// that cannot be split within the budget fails with [UnbreakablePassageError]
 /// instead of being silently dropped.
+///
+/// Leader dots are collapsed first: they are the layout between a heading
+/// and its page number, not content, and left in they would be most of a
+/// table-of-contents page's characters — enough to dominate its embedding
+/// and to leave a model reading nothing but dots. Every word and number
+/// still lands in exactly one passage.
 List<RagChunk> chunkPages({
   required String docId,
   required String docTitle,
@@ -26,7 +33,7 @@ List<RagChunk> chunkPages({
   final budget = maxTokens ?? _defaultBudget;
   final chunks = <RagChunk>[];
   for (var index = 0; index < pages.length; index++) {
-    final page = normalizePage(pages[index]);
+    final page = collapseLeaderDots(normalizePage(pages[index]));
     final units = TextUnits.of(page);
     if (units.isEmpty) continue;
 

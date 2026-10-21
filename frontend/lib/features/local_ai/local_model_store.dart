@@ -2,6 +2,7 @@ import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
+import 'model_token.dart';
 
 final localModelStore = LocalModelStore();
 
@@ -15,8 +16,8 @@ class LocalModelStore {
   CancelToken? _cancelToken;
 
   /// The Gemma 3 1B web build is gated on Hugging Face: accept its license
-  /// once, then either pass HUGGINGFACE_TOKEN at build time or mirror the
-  /// file and point LOCAL_MODEL_URL at your own storage.
+  /// once, then either let the server supply the token (GET /token) or mirror
+  /// the file and point LOCAL_MODEL_URL at your own storage.
   static const _defaultUrl =
       'https://huggingface.co/litert-community/Gemma3-1B-IT/resolve/main/'
       'gemma3-1b-it-int4-web.task';
@@ -41,11 +42,12 @@ class LocalModelStore {
     );
     _cancelToken = CancelToken();
     try {
+      final token = await modelToken.read();
       await FlutterEdgeAi.installModel(
         modelType: ModelType.gemmaIt,
         fileType: ModelFileType.task,
       )
-          .fromNetwork(modelUrl, token: _huggingFaceToken)
+          .fromNetwork(modelUrl, token: token)
           .withCancelToken(_cancelToken!)
           .withProgress((int progress) {
         localAiState.update(progress: progress);
@@ -86,18 +88,14 @@ class LocalModelStore {
       ForbiddenError() => 'One-time step needed: open the Gemma 3 1B model '
           'page on huggingface.co/litert-community/Gemma3-1B-IT while logged '
           'in, tap "Agree and access", then retry here.',
-      UnauthorizedError() => 'This build has no valid HuggingFace token — '
-          'rebuild with HUGGINGFACE_TOKEN set, then retry.',
+      UnauthorizedError() => 'The model download was refused by HuggingFace — '
+          'the server needs a valid HUGGINGFACE_TOKEN, or set '
+          'LOCAL_MODEL_URL to your own copy of the file.',
       RateLimitedError() =>
         'HuggingFace rate limit reached — wait a few minutes and retry.',
       NetworkError() =>
         'Network problem while downloading — check the connection and retry.',
       _ => failure.error.toUserMessage(),
     };
-  }
-
-  static String? get _huggingFaceToken {
-    const token = String.fromEnvironment('HUGGINGFACE_TOKEN');
-    return token.isEmpty ? null : token;
   }
 }

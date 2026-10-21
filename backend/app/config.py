@@ -19,6 +19,14 @@ class Settings:
     nvidia_api_key: str = ""
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
 
+    # HuggingFace token for the gated on-device model downloads.
+    #
+    # Served to the browser by GET /token at runtime. It must never be
+    # compiled into the web bundle: that bundle is public, and a token in it
+    # is a published token. Optional — the search model is ungated, so the
+    # app works without it.
+    huggingface_token: str = ""
+
 
 def load_settings() -> Settings:
     chat_provider = os.getenv("CHAT_PROVIDER", "nvidia").strip().lower()
@@ -42,4 +50,5 @@ def load_settings() -> Settings:
         nvidia_base_url=os.getenv(
             "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"
         ),
+        huggingface_token=os.getenv("HUGGINGFACE_TOKEN", ""),
     )

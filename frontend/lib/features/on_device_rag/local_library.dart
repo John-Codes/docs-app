@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import '../library/document_info.dart';
 import 'document_catalog.dart';
 import 'document_ingest.dart';
+import 'index_trouble.dart';
+import 'passage_budget.dart';
 
 /// The library, backed by this device instead of the server.
 ///
@@ -30,16 +32,51 @@ class LocalLibrary {
     await documentIngest.remove(document);
   }
 
-  /// Re-indexes documents that failed, usually because an earlier build
-  /// refused a passage the embedder now splits. The file is still on the
-  /// device, so this needs no re-upload; startup calls this only when the
-  /// passage pipeline changed, never on every load, and documents that
-  /// already indexed are left alone.
+  /// Rebuilds ready documents whose passages came from an older passage
+  /// pipeline.
+  ///
+  /// A pipeline fix can make stored passages wrong without failing them —
+  /// leader dots kept in the text, for instance — so a document that is
+  /// already ready still has to be rebuilt, or the old passages outlive the
+  /// fix. Failed documents are left to [retryFailed], so no document is
+  /// rebuilt twice in one heal. Startup calls this only when the version
+  /// changed, once per version, so a normal load re-embeds nothing.
+  Future<void> reindexOutdated() async {
+    final stale = documentCatalog
+        .read()
+        .where(
+          (document) =>
+              document.isReady &&
+              document.pipelineVersion < onDeviceRagPipelineVersion,
+        )
+        .toList();
+    for (final document in stale) {
+      try {
+        await documentIngest.rebuild(document);
+      } catch (_) {
+        // Offline or an unreadable file: the next version change retries.
+      }
+    }
+  }
+
+  /// Re-indexes failed documents that are worth another try.
+  ///
+  /// Two causes are worth retrying: the passages came from an older pipeline,
+  /// which may now split what used to be refused, or the failure was another
+  /// tab holding the database open — that cause is gone once its tab closes,
+  /// and re-uploading to recover from a locked tab would be a trap. A document
+  /// that fails for a reason of its own (a page that cannot be split) is left
+  /// alone, so a load never re-embeds it. The file is on the device, so even a
+  /// rebuild needs no re-upload.
   Future<void> retryFailed() async {
     for (final document in documentCatalog.read()) {
       if (!document.hasFailed || document.chunks > 0) continue;
+      final worthRetrying =
+          document.pipelineVersion < onDeviceRagPipelineVersion ||
+          isIndexBusy(document.error ?? '');
+      if (!worthRetrying) continue;
       try {
-        await documentIngest.reindexDraft(document);
+        await documentIngest.rebuild(document);
       } catch (_) {
         // Still offline, or the file is unreadable: leave it failed.
       }

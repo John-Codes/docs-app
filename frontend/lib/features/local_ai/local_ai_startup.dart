@@ -11,6 +11,7 @@ import 'local_ai_gate.dart';
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
 import 'local_model_store.dart';
+import 'model_token.dart';
 
 /// Boots the on-device AI engine in the background.
 ///
@@ -21,11 +22,12 @@ import 'local_model_store.dart';
 /// device that can actually run the WebGPU model.
 Future<void> startLocalAi() async {
   try {
+    final token = await modelToken.read();
     await FlutterEdgeAi.initialize(
       inferenceEngines: const [MediaPipeEngine()],
       embeddingBackends: const [LiteRtEmbeddingBackend()],
       embeddingTokenizers: const [GemmaEmbeddingTokenizers()],
-      huggingFaceToken: _huggingFaceToken,
+      huggingFaceToken: token,
     ).timeout(_startupTimeout, onTimeout: () {});
 
     localAiState.update(engine: true);
@@ -44,11 +46,6 @@ Future<void> startLocalAi() async {
 }
 
 const _startupTimeout = Duration(seconds: 60);
-
-String? get _huggingFaceToken {
-  const token = String.fromEnvironment('HUGGINGFACE_TOKEN');
-  return token.isEmpty ? null : token;
-}
 
 /// Removes partial files left by an interrupted download. Called after the
 /// engine is ready — the interrupted download itself is restarted by the

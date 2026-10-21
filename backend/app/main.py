@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.chat.proxy import router as chat_proxy_router
 from app.extract import router as extract_router
+from app.token import router as token_router
 
 
 @asynccontextmanager
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
 
     app.include_router(extract_router)
     app.include_router(chat_proxy_router)
+    app.include_router(token_router)
 
     @app.get("/health")
     def health() -> dict:

@@ -10,6 +10,7 @@ class DocumentInfo {
     required this.uploadedAt,
     this.error,
     this.draft = false,
+    this.pipelineVersion = 0,
   });
 
   final String id;
@@ -27,6 +28,11 @@ class DocumentInfo {
   /// the connection comes back.
   final bool draft;
 
+  /// The passage pipeline that built this document's passages. Zero means
+  /// "before this was recorded", which is older than any real version — so
+  /// an entry from an earlier build is rebuilt once, not trusted as current.
+  final int pipelineVersion;
+
   bool get isReady => status == 'ready';
   bool get isProcessing => status == 'processing';
   bool get hasFailed => status == 'failed';
@@ -43,6 +49,7 @@ class DocumentInfo {
       uploadedAt: json['uploaded_at']?.toString() ?? '',
       error: json['error']?.toString(),
       draft: json['draft'] == true,
+      pipelineVersion: (json['pipeline_version'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -57,6 +64,7 @@ class DocumentInfo {
     'uploaded_at': uploadedAt,
     'error': error,
     'draft': draft,
+    'pipeline_version': pipelineVersion,
   };
 
   DocumentInfo copyWith({
@@ -65,6 +73,7 @@ class DocumentInfo {
     int? chunks,
     String? error,
     bool? draft,
+    int? pipelineVersion,
   }) {
     return DocumentInfo(
       id: id,
@@ -77,6 +86,7 @@ class DocumentInfo {
       uploadedAt: uploadedAt,
       error: error ?? this.error,
       draft: draft ?? this.draft,
+      pipelineVersion: pipelineVersion ?? this.pipelineVersion,
     );
   }
 }

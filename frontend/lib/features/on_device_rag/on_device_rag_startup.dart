@@ -52,11 +52,16 @@ Future<void> _restoreLibrary() async {
 
 const _pipelineVersionKey = 'on_device_rag_pipeline_version_v1';
 
-/// Retries failed documents once per passage-pipeline version, then records
-/// the version so later loads do no embedding work of their own. A document
-/// that only failed because another tab held the database open is retried on
-/// any load: that cause is gone once its tab is closed, and re-uploading to
-/// recover from a locked tab would be a trap.
+/// Rebuilds documents indexed under an older passage pipeline, once per
+/// version, then records the version so later loads do no embedding work of
+/// their own.
+///
+/// A pipeline change can make existing passages wrong rather than failed —
+/// leader dots in the stored text, say — so a document that is already ready
+/// has to be re-indexed too, or the old passages would outlive the fix.
+/// A document that only failed because another tab held the database open is
+/// retried on any load: that cause is gone once its tab is closed, and
+/// re-uploading to recover from a locked tab would be a trap.
 Future<void> _healFailedDocumentsOnce() async {
   final current = '$onDeviceRagPipelineVersion';
   final versionChanged = _readVersion() != current;
@@ -67,6 +72,9 @@ Future<void> _healFailedDocumentsOnce() async {
   // Offline the extraction would fail anyway; leave the version unclaimed
   // so one online load can heal them.
   if (!browserConnectivity.online) return;
+  if (versionChanged) {
+    await localLibrary.reindexOutdated();
+  }
   await localLibrary.retryFailed();
   _writeVersion(current);
 }

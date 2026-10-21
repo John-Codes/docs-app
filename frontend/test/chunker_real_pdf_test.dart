@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:docs_app/features/on_device_rag/chunker.dart';
+import 'package:docs_app/features/on_device_rag/leader_dots.dart';
 import 'package:docs_app/features/on_device_rag/text_units.dart';
 
 /// The conservative estimate that stands in when the runtime tokenizer is
@@ -36,7 +37,7 @@ void main() {
       final parts = _chunks(page);
       chunks += parts.length;
 
-      expect(parts.join(), normalizePage(page),
+      expect(parts.join(), collapseLeaderDots(normalizePage(page)),
           reason: 'page ${index + 1} must come back whole');
       for (final part in parts) {
         expect(estimateTokens(part), lessThanOrEqualTo(realBudget),
