@@ -1,5 +1,6 @@
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
+import 'download_retry.dart';
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
 import 'model_token.dart';
@@ -14,6 +15,10 @@ final localModelStore = LocalModelStore();
 /// download failed — the app continues exactly as before.
 class LocalModelStore {
   CancelToken? _cancelToken;
+
+  /// Set while the user has stopped the download, so a retry in flight
+  /// never resurrects it behind their back.
+  bool _stopped = false;
 
   /// The Gemma 3 1B web build is gated on Hugging Face: accept its license
   /// once, then either let the server supply the token (GET /token) or mirror
@@ -34,24 +39,34 @@ class LocalModelStore {
   Future<void> download() async {
     if (localAiState.downloadActive) return;
     await localAiPreferences.clearDeclined();
+    _stopped = false;
     localAiState.update(
       downloading: true,
       failed: false,
       progress: 0,
       error: '', // Clear any message from a previous attempt.
     );
-    _cancelToken = CancelToken();
     try {
       final token = await modelToken.read();
-      await FlutterEdgeAi.installModel(
-        modelType: ModelType.gemmaIt,
-        fileType: ModelFileType.task,
-      )
-          .fromNetwork(modelUrl, token: token)
-          .withCancelToken(_cancelToken!)
-          .withProgress((int progress) {
-        localAiState.update(progress: progress);
-      }).install();
+      await retrying(
+        // A cancelled token stays cancelled, so every attempt gets its own;
+        // the store's flag is what actually decides whether to keep going.
+        attempt: () {
+          final attemptToken = CancelToken();
+          _cancelToken = attemptToken;
+          return FlutterEdgeAi.installModel(
+            modelType: ModelType.gemmaIt,
+            fileType: ModelFileType.task,
+          )
+              .fromNetwork(modelUrl, token: token)
+              .withCancelToken(attemptToken)
+              .withProgress((int progress) {
+            localAiState.update(progress: progress);
+          }).install();
+        },
+        isCancelled: () => _stopped,
+        onRetry: (_) => localAiState.update(progress: 0),
+      );
       localAiState.update(downloading: false, model: true, progress: 100);
     } catch (failure) {
       // A cancelled download is quiet; a real failure explains itself in
@@ -69,6 +84,7 @@ class LocalModelStore {
   /// Stops the download and remembers the decision, so smart auto-download
   /// never starts it again by itself. The badge stays for a manual restart.
   Future<void> cancel() async {
+    _stopped = true;
     _cancelToken?.cancel('User stopped the on-device model download.');
     localAiState.update(downloading: false);
     await localAiPreferences.markDownloadDeclined();
