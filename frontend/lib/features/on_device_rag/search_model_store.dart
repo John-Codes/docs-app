@@ -2,8 +2,11 @@ import 'dart:async';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
+import '../local_ai/client_report.dart';
+import '../local_ai/download_failure_message.dart';
 import '../local_ai/download_retry.dart';
 import '../local_ai/local_ai_state.dart';
+import '../local_ai/model_token.dart';
 import '../local_ai/opfs_models.dart';
 import '../local_ai/storage_guard.dart';
 import '../local_ai/storage_room.dart';
@@ -81,12 +84,17 @@ class SearchModelStore {
     );
     final room = await readStorageRoom(needed);
     if (room != null && !room.enough) {
+      final message = storageShortageMessage(room);
       localAiState.update(
         searchDownloading: false,
         searchFailed: true,
         searchProgress: 0,
-        searchError: storageShortageMessage(room),
+        searchError: message,
       );
+      reportClientEvent('search_model_no_storage', message, {
+        'neededBytes': '$needed',
+        'freeBytes': '${room.freeBytes}',
+      });
       return;
     }
 
@@ -132,14 +140,18 @@ class SearchModelStore {
     } catch (failure) {
       await discardIncompleteModel(modelFile);
       await discardIncompleteModel(tokenizerFile);
+      reportClientEvent('search_model_download_failed', failure, {
+        'tokenPresent': '${modelToken.hasToken}',
+      });
       localAiState.update(
         searchDownloading: false,
         searchFailed: true,
         searchProgress: 0,
-        searchError: isStorageFailure(failure)
-            ? storageFailureMessage()
-            : 'The search model could not be downloaded. Check the '
-                'connection and retry.',
+        searchError: describeDownloadFailure(
+          failure,
+          fallback: 'The search model could not be downloaded. Check the '
+              'connection and retry.',
+        ),
       );
     }
   }

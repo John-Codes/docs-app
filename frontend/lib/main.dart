@@ -9,6 +9,7 @@ import 'features/local_ai/local_ai.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  installGlobalErrorReporting();
   await themeController.load();
   runApp(const DocsApp());
   // Boots the on-device engine in the background; never blocks the UI and

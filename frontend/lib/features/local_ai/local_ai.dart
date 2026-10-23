@@ -4,7 +4,9 @@
 library;
 
 export 'browser_connectivity.dart';
+export 'client_report.dart';
 export 'download_retry.dart';
+export 'global_error_report.dart';
 export 'local_ai_preferences.dart';
 export 'local_ai_state.dart';
 export 'local_ai_startup.dart';

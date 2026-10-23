@@ -39,9 +39,27 @@ jobs:
         working-directory: backend
         run: pytest tests -q
 
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.47.7"
+          channel: stable
+      - name: Install dependencies
+        working-directory: frontend
+        run: flutter pub get
+      - name: Analyze
+        working-directory: frontend
+        run: flutter analyze
+      - name: Flutter tests
+        working-directory: frontend
+        run: flutter test
+
   deploy:
     runs-on: ubuntu-latest
-    needs: e2e
+    needs: [e2e, flutter]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     env:
       RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}

@@ -62,6 +62,11 @@ bool isRetryableDownloadFailure(Object failure) {
     'unauthorized',
     'not found',
     'cancel',
+    // The OPFS helper reports `HTTP <status>` and may omit the status text,
+    // so match the codes too: a refused install must not re-fetch 700 MB.
+    '401',
+    '403',
+    '404',
   ];
   if (permanent.any(text.contains)) return false;
   const transient = [
