@@ -7,6 +7,7 @@ import 'package:flutter_edge_ai_mediapipe/flutter_edge_ai_mediapipe.dart';
 
 import '../on_device_rag/on_device_rag.dart';
 import 'browser_connectivity.dart';
+import 'client_report.dart';
 import 'local_ai_gate.dart';
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
@@ -35,7 +36,12 @@ Future<void> startLocalAi() async {
       // full browser only refused it after the entire fetch had finished.
       // Browsers without OPFS fall back to the Cache API on their own.
       webStorageMode: WebStorageMode.streaming,
-    ).timeout(_startupTimeout, onTimeout: () {});
+    ).timeout(
+      _startupTimeout,
+      onTimeout: () => throw TimeoutException(
+        'the on-device engine did not start within $_startupTimeout',
+      ),
+    );
 
     localAiState.update(engine: true);
     await _cleanupInterruptedFiles();
@@ -48,8 +54,11 @@ Future<void> startLocalAi() async {
     final alreadyHere = FlutterEdgeAi.activeModelSpec != null;
     localAiState.update(model: alreadyHere);
     if (!alreadyHere) await _maybeAutoDownload();
-  } catch (_) {
+  } catch (failure) {
     // Local AI is a bonus, never a requirement. Cloud chat is untouched.
+    // The failure is still recorded: a silent one left users with no
+    // download UI and no clue why.
+    reportClientEvent('local_ai_start_failed', failure);
   }
 }
 

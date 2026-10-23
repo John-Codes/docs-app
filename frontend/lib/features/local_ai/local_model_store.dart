@@ -1,5 +1,7 @@
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
+import 'client_report.dart';
+import 'download_failure_message.dart';
 import 'download_retry.dart';
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
@@ -63,12 +65,17 @@ class LocalModelStore {
     );
     final room = await readStorageRoom(needed);
     if (room != null && !room.enough) {
+      final message = storageShortageMessage(room);
       localAiState.update(
         downloading: false,
         failed: true,
         progress: 0,
-        error: storageShortageMessage(room),
+        error: message,
       );
+      reportClientEvent('answer_model_no_storage', message, {
+        'neededBytes': '$needed',
+        'freeBytes': '${room.freeBytes}',
+      });
       return;
     }
 
@@ -113,11 +120,17 @@ class LocalModelStore {
       // A cancelled download is quiet; a real failure explains itself in
       // the download sheet — never as a chat error, never blocking anything.
       final cancelled = CancelToken.isCancel(failure);
+      if (!cancelled) {
+        reportClientEvent('answer_model_download_failed', failure, {
+          'tokenPresent': '${modelToken.hasToken}',
+          'searchReady': '${localAiState.searchReady}',
+        });
+      }
       localAiState.update(
         downloading: false,
         failed: !cancelled,
         progress: 0,
-        error: cancelled ? '' : _explainDownloadFailure(failure),
+        error: cancelled ? '' : describeDownloadFailure(failure),
       );
     }
   }
@@ -132,28 +145,4 @@ class LocalModelStore {
   }
 
   bool get isModelInstalled => FlutterEdgeAi.activeModelSpec != null;
-
-  /// Turns a download failure into the one sentence the download sheet
-  /// shows. Cancelled downloads stay silent; anything else gets a plain,
-  /// actionable message instead of the invisible failure it used to be.
-  String _explainDownloadFailure(Object failure) {
-    if (isStorageFailure(failure)) return storageFailureMessage();
-    if (failure is! DownloadException) {
-      return 'The download could not start — check the connection and '
-          'retry.';
-    }
-    return switch (failure.error) {
-      ForbiddenError() => 'One-time step needed: open the Gemma 3 1B model '
-          'page on huggingface.co/litert-community/Gemma3-1B-IT while logged '
-          'in, tap "Agree and access", then retry here.',
-      UnauthorizedError() => 'The model download was refused by HuggingFace — '
-          'the server needs a valid HUGGINGFACE_TOKEN, or set '
-          'LOCAL_MODEL_URL to your own copy of the file.',
-      RateLimitedError() =>
-        'HuggingFace rate limit reached — wait a few minutes and retry.',
-      NetworkError() =>
-        'Network problem while downloading — check the connection and retry.',
-      _ => failure.error.toUserMessage(),
-    };
-  }
 }
