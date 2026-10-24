@@ -14,6 +14,15 @@ String describeDownloadFailure(Object failure, {String? fallback}) {
   if (failure is DownloadException) return _fromTypedError(failure);
 
   final text = failure.toString().toLowerCase();
+  if (_mentions(text, const [
+    'createwritable',
+    'createsyncaccesshandle',
+    'is not a function',
+    'not supported',
+    'not implemented',
+  ])) {
+    return _capabilityMessage;
+  }
   if (_mentions(text, const ['403', 'forbidden'])) return _licenseMessage;
   if (_mentions(text, const ['401', 'unauthorized'])) return _tokenMessage;
   if (_mentions(text, const ['429', 'rate limit', 'too many requests'])) {
@@ -66,6 +75,10 @@ const _rateLimitMessage =
 const _missingMessage =
     'The model file was not found on the server — retry later or point '
     'LOCAL_MODEL_URL at your own copy.';
+
+const _capabilityMessage =
+    'This browser cannot store the model file (its OPFS write API is '
+    'missing). It needs Safari 26+, Chrome 86+ or Firefox 111+.';
 
 const _networkMessage =
     'Network problem while downloading — check the connection and retry.';

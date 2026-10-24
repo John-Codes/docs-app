@@ -47,6 +47,35 @@
     window.FilesetResolver = FilesetResolver;
     window.LlmInference = LlmInference;
   </script>
+  <!-- Pre-Flutter error bridge: catches JS failures (OPFS, workers, WASM)
+       before the app is up and posts them to /client-logs. Matches the
+       server's scrubbed batch schema; no tokens, no page content. -->
+  <script>
+    (function () {
+      function post(event, message) {
+        try {
+          fetch('/client-logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              entries: [{
+                event: event,
+                message: String(message).split('\n')[0].slice(0, 500),
+                context: {
+                  ua: (navigator.userAgent || '').slice(0, 200),
+                  platform: (navigator.platform || '').slice(0, 40),
+                },
+              }],
+            }),
+          }).catch(function () {});
+        } catch (e) { /* never break the page */ }
+      }
+      window.onerror = function (message) { post('js_error', message); };
+      window.addEventListener('unhandledrejection', function (event) {
+        post('js_rejection', event.reason && (event.reason.message || event.reason));
+      });
+    })();
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

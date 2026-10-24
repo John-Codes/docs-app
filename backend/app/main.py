@@ -6,14 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.chat.proxy import router as chat_proxy_router
-from app.client_logs import router as client_logs_router
+from app.client_logs import (
+    client_log_store,
+    close_client_log_store,
+    router as client_logs_router,
+)
 from app.extract import router as extract_router
 from app.token import router as token_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    store = client_log_store()
+    if store.persistent:
+        await store.start()
     yield
+    close_client_log_store()
 
 
 def create_app() -> FastAPI:

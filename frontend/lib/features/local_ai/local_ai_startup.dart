@@ -34,8 +34,11 @@ Future<void> startLocalAi() async {
       // whole file in memory and copying it into the Cache API. The 700 MB
       // answer model otherwise peaks at well over a gigabyte of RAM, and a
       // full browser only refused it after the entire fetch had finished.
-      // Browsers without OPFS fall back to the Cache API on their own.
-      webStorageMode: WebStorageMode.streaming,
+      // iOS 15-18 exposes OPFS but cannot write it through createWritable();
+      // the opfs_helper.js worker shim covers those browsers, and one that
+      // cannot write at all must not lose the ungated 114 MB search model
+      // with it — the Cache API still downloads that.
+      webStorageMode: await _storageModeForThisBrowser(),
     ).timeout(
       _startupTimeout,
       onTimeout: () => throw TimeoutException(
@@ -139,4 +142,15 @@ Future<void> _maybeAutoDownload() async {
   } catch (_) {
     // Auto-download is opportunistic; never let it surface an error.
   }
+}
+
+/// Streaming needs a browser that can actually write OPFS files. iOS 15-18
+/// cannot use createWritable() (WebKit ships it only in Safari 26), so the
+/// helper writes through a worker's createSyncAccessHandle() instead; a
+/// browser with no write path at all gets the Cache API, which keeps the
+/// 114 MB search model downloadable everywhere.
+Future<WebStorageMode> _storageModeForThisBrowser() async {
+  final capabilities = await opfsWriteCapabilities();
+  if (capabilities == null) return WebStorageMode.cacheApi;
+  return capabilities.usable ? WebStorageMode.streaming : WebStorageMode.cacheApi;
 }
