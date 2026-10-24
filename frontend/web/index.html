@@ -47,6 +47,33 @@
     window.FilesetResolver = FilesetResolver;
     window.LlmInference = LlmInference;
   </script>
+  <!-- Pre-Flutter error bridge: catches JS failures (OPFS, workers, WASM)
+       before the app is up and posts them to /errors. Keeps only the first
+       line of the message; no tokens, no page content. -->
+  <script>
+    (function () {
+      function post(kind, message) {
+        try {
+          fetch('/errors', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              event: 'js_' + kind,
+              stage: 'bootstrap',
+              error: { name: kind, message: String(message).split('\n')[0] },
+              device: { ua: navigator.userAgent, platform: navigator.platform },
+              caps: {},
+              app: { preFlutter: true },
+            }),
+          }).catch(function () {});
+        } catch (e) { /* never break the page */ }
+      }
+      window.onerror = function (message) { post('error', message); };
+      window.addEventListener('unhandledrejection', function (event) {
+        post('rejection', event.reason && (event.reason.message || event.reason));
+      });
+    })();
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

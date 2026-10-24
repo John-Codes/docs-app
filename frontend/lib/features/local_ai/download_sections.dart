@@ -71,6 +71,22 @@ class AnswerModelSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.titleSmall;
+    // The 700 MB model runs on WebGPU. Offering it on a browser that cannot
+    // run it just burns the user's data — the device gate exists precisely
+    // for this, so the manual path consults it too.
+    if (!localAiState.deviceSupported) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('On-device answers (about 700 MB)', style: style),
+          const SizedBox(height: 6),
+          const Text(
+            'This device or browser cannot run the on-device answer model '
+            '(it needs WebGPU). Cloud answers keep working normally.',
+          ),
+        ],
+      );
+    }
     if (localAiState.downloadFailed) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

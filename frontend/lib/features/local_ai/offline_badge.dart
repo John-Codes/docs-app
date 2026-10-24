@@ -48,6 +48,26 @@ class _OfflineBadgeState extends State<OfflineBadge> {
         ),
       );
     }
+    // A failed download used to be silent here: the chip just turned into
+    // "Retry" and the reason stayed hidden in a tooltip nobody long-presses.
+    // Announce it once so the user knows what to do next.
+    if (_wasDownloading &&
+        !localAiState.downloadActive &&
+        !localAiState.searchDownloadActive) {
+      final reason = localAiState.searchFailed
+          ? localAiState.searchError
+          : localAiState.downloadFailed
+              ? localAiState.downloadError
+              : null;
+      if (reason != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(reason),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
+    }
     _wasDownloading =
         localAiState.downloadActive || localAiState.searchDownloadActive;
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
+import '../error_reports/download_failure.dart';
 import '../local_ai/download_retry.dart';
 import '../local_ai/local_ai_state.dart';
 import '../local_ai/opfs_models.dart';
@@ -132,14 +133,16 @@ class SearchModelStore {
     } catch (failure) {
       await discardIncompleteModel(modelFile);
       await discardIncompleteModel(tokenizerFile);
+      final described = describeAndReportDownloadFailure(
+        'download_failed',
+        'search_model',
+        failure,
+      );
       localAiState.update(
         searchDownloading: false,
         searchFailed: true,
         searchProgress: 0,
-        searchError: isStorageFailure(failure)
-            ? storageFailureMessage()
-            : 'The search model could not be downloaded. Check the '
-                'connection and retry.',
+        searchError: described.headline,
       );
     }
   }

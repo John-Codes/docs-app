@@ -27,6 +27,12 @@ class Settings:
     # app works without it.
     huggingface_token: str = ""
 
+    # MongoDB connection string for client error reports. Optional: when it
+    # is unset the /errors endpoints keep working from an in-memory ring
+    # buffer so a browser report is never lost to a missing database.
+    mongodb_uri: str = ""
+    mongodb_db: str = "docs_app"
+
 
 def load_settings() -> Settings:
     chat_provider = os.getenv("CHAT_PROVIDER", "nvidia").strip().lower()
@@ -51,4 +57,6 @@ def load_settings() -> Settings:
             "NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"
         ),
         huggingface_token=os.getenv("HUGGINGFACE_TOKEN", ""),
+        mongodb_uri=os.getenv("MONGODB_URI", ""),
+        mongodb_db=os.getenv("MONGODB_DB", "docs_app"),
     )

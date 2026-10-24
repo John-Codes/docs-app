@@ -1,10 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 import 'package:flutter_edge_ai_embeddings/flutter_edge_ai_embeddings.dart';
 import 'package:flutter_edge_ai_litertlm/flutter_edge_ai_litertlm.dart';
 import 'package:flutter_edge_ai_mediapipe/flutter_edge_ai_mediapipe.dart';
 
+import '../error_reports/error_reporter.dart';
 import '../on_device_rag/on_device_rag.dart';
 import 'browser_connectivity.dart';
 import 'local_ai_gate.dart';
@@ -24,6 +26,7 @@ import 'opfs_models.dart';
 Future<void> startLocalAi() async {
   try {
     final token = await modelToken.read();
+    final capabilities = await opfsWriteCapabilities();
     await FlutterEdgeAi.initialize(
       inferenceEngines: const [MediaPipeEngine()],
       embeddingBackends: const [LiteRtEmbeddingBackend()],
@@ -33,8 +36,10 @@ Future<void> startLocalAi() async {
       // whole file in memory and copying it into the Cache API. The 700 MB
       // answer model otherwise peaks at well over a gigabyte of RAM, and a
       // full browser only refused it after the entire fetch had finished.
-      // Browsers without OPFS fall back to the Cache API on their own.
-      webStorageMode: WebStorageMode.streaming,
+      // Browsers that cannot write OPFS (Safari/iOS 15-18) get the Cache API
+      // instead: the worker shim covers them, and a missing write API must
+      // not kill the ungated 114 MB search model with it.
+      webStorageMode: _storageModeFor(capabilities),
     ).timeout(_startupTimeout, onTimeout: () {});
 
     localAiState.update(engine: true);
@@ -42,15 +47,33 @@ Future<void> startLocalAi() async {
     await _repairInstalledModels();
     unawaited(startOnDeviceRag());
 
-    if (!await isDeviceSupportedForLocalAi()) return;
+    if (!await isDeviceSupportedForLocalAi()) {
+      await reportClientError(
+        'device_unsupported',
+        'device_gate',
+        extra: {'reason': 'webgpu/cores/memory/storage gate failed'},
+      );
+      return;
+    }
     localAiState.update(supported: true);
 
     final alreadyHere = FlutterEdgeAi.activeModelSpec != null;
     localAiState.update(model: alreadyHere);
     if (!alreadyHere) await _maybeAutoDownload();
-  } catch (_) {
-    // Local AI is a bonus, never a requirement. Cloud chat is untouched.
+  } catch (failure) {
+    // Local AI is a bonus, never a requirement. Cloud chat is untouched —
+    // but the failure is reported so the badge can say why it is missing
+    // instead of leaving the user with no download button and no reason.
+    debugPrint('[local-ai] startup failed: $failure');
+    await reportClientError('engine_init_failed', 'engine_init', error: failure);
   }
+}
+
+/// Streaming needs a browser that can write OPFS files; everyone else falls
+/// back to the Cache API so the search model still downloads.
+WebStorageMode _storageModeFor(OpfsWriteCapabilities? capabilities) {
+  if (capabilities == null) return WebStorageMode.cacheApi;
+  return capabilities.usable ? WebStorageMode.streaming : WebStorageMode.cacheApi;
 }
 
 const _startupTimeout = Duration(seconds: 60);
