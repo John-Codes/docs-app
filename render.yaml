@@ -21,7 +21,7 @@ services:
       - key: CHAT_PROVIDER
         value: nvidia
       - key: CHAT_MODEL
-        value: openai/gpt-oss-20b
+        value: nvidia/nemotron-3-ultra-550b-a55b
       - key: NVIDIA_API_KEY
         sync: false
       - key: MONGODB_URI

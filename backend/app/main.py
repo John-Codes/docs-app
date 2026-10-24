@@ -6,17 +6,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.chat.proxy import router as chat_proxy_router
-from app.error_store import ClientErrorStore
-from app.errors import error_store, router as errors_router, set_error_store
+from app.client_logs import (
+    client_log_store,
+    close_client_log_store,
+    router as client_logs_router,
+)
 from app.extract import router as extract_router
 from app.token import router as token_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    await error_store().start()
+    store = client_log_store()
+    if store.persistent:
+        await store.start()
     yield
-    error_store().close()
+    close_client_log_store()
 
 
 def create_app() -> FastAPI:
@@ -41,7 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(extract_router)
     app.include_router(chat_proxy_router)
     app.include_router(token_router)
-    app.include_router(errors_router)
+    app.include_router(client_logs_router)
 
     @app.get("/health")
     def health() -> dict:

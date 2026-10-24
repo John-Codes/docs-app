@@ -1,6 +1,7 @@
 import 'package:flutter_edge_ai/flutter_edge_ai.dart';
 
-import '../error_reports/download_failure.dart';
+import 'client_report.dart';
+import 'download_failure_message.dart';
 import 'download_retry.dart';
 import 'local_ai_preferences.dart';
 import 'local_ai_state.dart';
@@ -64,12 +65,17 @@ class LocalModelStore {
     );
     final room = await readStorageRoom(needed);
     if (room != null && !room.enough) {
+      final message = storageShortageMessage(room);
       localAiState.update(
         downloading: false,
         failed: true,
         progress: 0,
-        error: storageShortageMessage(room),
+        error: message,
       );
+      reportClientEvent('answer_model_no_storage', message, {
+        'neededBytes': '$needed',
+        'freeBytes': '${room.freeBytes}',
+      });
       return;
     }
 
@@ -114,16 +120,17 @@ class LocalModelStore {
       // A cancelled download is quiet; a real failure explains itself in
       // the download sheet — never as a chat error, never blocking anything.
       final cancelled = CancelToken.isCancel(failure);
-      final described = describeAndReportDownloadFailure(
-        'download_failed',
-        'answer_model',
-        failure,
-      );
+      if (!cancelled) {
+        reportClientEvent('answer_model_download_failed', failure, {
+          'tokenPresent': '${modelToken.hasToken}',
+          'searchReady': '${localAiState.searchReady}',
+        });
+      }
       localAiState.update(
         downloading: false,
         failed: !cancelled,
         progress: 0,
-        error: cancelled ? '' : described.headline,
+        error: cancelled ? '' : describeDownloadFailure(failure),
       );
     }
   }

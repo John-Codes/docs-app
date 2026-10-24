@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../core/api/api_client.dart';
+import 'client_report.dart';
 
 /// Fetches the HuggingFace token the gated model downloads need.
 ///
@@ -14,6 +15,10 @@ final modelToken = ModelToken();
 class ModelToken {
   String? _token;
   Future<String?>? _pending;
+
+  /// Whether the server supplied a token this session. Reported alongside
+  /// download failures so a refused gated file is easy to recognise.
+  bool get hasToken => _token != null;
 
   /// The token, or null when the server has none. Fetched once per session.
   Future<String?> read() {
@@ -30,6 +35,7 @@ class ModelToken {
       // Offline, or an older server without the endpoint: gated downloads
       // stay off and the app carries on.
       debugPrint('[local-ai] could not read the model token: $failure');
+      reportClientEvent('model_token_failed', failure);
       _token = null;
     }
     return _token;
